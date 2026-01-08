@@ -13,6 +13,13 @@ import (
 	"github.com/outpostos/edge-logs/pkg/config"
 )
 
+// Build-time variables (set via ldflags)
+var (
+	Version   = "v0.1.0-dev"
+	BuildDate = "unknown"
+	GitCommit = "unknown"
+)
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "edge-logs-apiserver",
@@ -51,7 +58,7 @@ func run() error {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}
 
-	klog.InfoS("Starting edge-logs API server", "version", "v0.1.0", "port", cfg.Server.Port)
+	klog.InfoS("Starting edge-logs API server", "version", Version, "build_date", BuildDate, "git_commit", GitCommit, "port", cfg.Server.Port)
 
 	if err := server.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start API server: %w", err)

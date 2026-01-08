@@ -15,7 +15,7 @@ BINARY_UNIX=$(BINARY_NAME)_unix
 VERSION ?= v0.1.0
 BUILD_DATE=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 GIT_COMMIT=$(shell git rev-parse --short HEAD)
-LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT)"
+LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT) -X github.com/outpostos/edge-logs/pkg/apiserver.version=$(VERSION)"
 
 # Docker
 REGISTRY ?= ghcr.io/outpostos

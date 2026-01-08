@@ -103,7 +103,15 @@ func healthCheck(req *restful.Request, resp *restful.Response) {
 	resp.WriteEntity(map[string]string{
 		"status":    "healthy",
 		"service":   "edge-logs-apiserver",
-		"version":   "v0.1.0",
+		"version":   getVersion(),
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+// Build-time variable (set via ldflags)
+var version = "v0.1.0-dev"
+
+// getVersion returns the version from build-time variables or a default
+func getVersion() string {
+	return version
 }
