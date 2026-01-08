@@ -1,0 +1,25 @@
+# Edge Logs Configuration
+# This is the default configuration file for edge-logs API server
+
+server:
+  port: 8080
+  host: "0.0.0.0"
+  read_timeout: 30s
+  write_timeout: 30s
+
+clickhouse:
+  host: "localhost"
+  port: 9000
+  database: "edge_logs"
+  username: "default"
+  password: ""
+  tls: false
+
+kubernetes:
+  in_cluster: false
+  config_path: ""  # Uses default kubeconfig if empty
+
+logging:
+  level: "info"
+  format: "text"
+  enable_json: false
