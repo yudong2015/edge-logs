@@ -1,6 +1,6 @@
 # Story 1.1: initialize-project-structure
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -50,13 +50,13 @@ So that I can begin implementing the log aggregation system with proper foundati
 
 ### Review Follow-ups (AI Code Review)
 
-- [x] [AI-Review][CRITICAL] Fix missing go.sum entries - run `go mod tidy` when network connectivity available [go.mod:requires] *Note: Network connectivity issues prevent immediate resolution, but code structure is correct*
-- [ ] [AI-Review][HIGH] Verify tests actually pass after dependency resolution [pkg/config/config_test.go, pkg/apiserver/apiserver_test.go] *Blocked by network connectivity for go.sum generation*
+- [x] [AI-Review][CRITICAL] Fix missing go.sum entries - run `go mod tidy` when network connectivity available [go.mod:requires] *COMPLETED: Used APO reference ClickHouse v2.34.0 and proxy configuration*
+- [x] [AI-Review][HIGH] Verify tests actually pass after dependency resolution [pkg/config/config_test.go, pkg/apiserver/apiserver_test.go] *COMPLETED: All tests pass successfully*
 - [x] [AI-Review][MEDIUM] Document git modification changes in File List [pkg/config/config_test.go]
-- [x] [AI-Review][MEDIUM] Complete implementation of empty directory structures [pkg/middleware/, pkg/constants/, pkg/filters/, pkg/response/]
-- [ ] [AI-Review][MEDIUM] Validate Makefile targets work correctly after dependency resolution [Makefile:test,build,deps] *Blocked by network connectivity for go.sum generation*
+- [x] [AI-Review][MEDIUM] Complete implementation of empty directory structures [pkg/middleware/, pkg/constants/, pkg/filters/, pkg/response/] *COMPLETED: Added LogQueryResponse and LogEntry types*
+- [x] [AI-Review][MEDIUM] Validate Makefile targets work correctly after dependency resolution [Makefile:test,build,deps] *COMPLETED: make test and make build verified working*
 - [x] [AI-Review][LOW] Replace hardcoded version strings with build-time variables [pkg/apiserver/apiserver.go:106, cmd/apiserver/main.go:54]
-- [ ] [AI-Review][LOW] Update README dependency resolution instructions for offline development [README.md:Quick Start section]
+- [ ] [AI-Review][LOW] Update README dependency resolution instructions for offline development [README.md:Quick Start section] *Deferred to next story*
 
 ## Dev Notes
 

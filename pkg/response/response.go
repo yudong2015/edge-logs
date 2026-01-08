@@ -28,6 +28,27 @@ func WriteError(resp *restful.Response, code int, message string) {
 	})
 }
 
+// LogQueryResponse represents a log query API response
+type LogQueryResponse struct {
+	Logs       []LogEntry `json:"logs"`
+	TotalCount int64      `json:"total_count"`
+	Page       int        `json:"page"`
+	PageSize   int        `json:"page_size"`
+	HasMore    bool       `json:"has_more"`
+}
+
+// LogEntry represents a single log entry
+type LogEntry struct {
+	Timestamp   string            `json:"timestamp"`
+	Level       string            `json:"level"`
+	Message     string            `json:"message"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Pod         string            `json:"pod,omitempty"`
+	Container   string            `json:"container,omitempty"`
+	HostIP      string            `json:"host_ip,omitempty"`
+	Tags        map[string]string `json:"tags,omitempty"`
+}
+
 // WriteSuccess writes a success response
 func WriteSuccess(resp *restful.Response, data interface{}) {
 	resp.WriteHeaderAndEntity(http.StatusOK, SuccessResponse{
