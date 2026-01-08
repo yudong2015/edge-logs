@@ -46,7 +46,7 @@ story_location: _bmad-output
 development_status:
   # Epic 1: Foundation and Core Query API
   epic-1: in-progress
-  1-1-initialize-project-structure: review
+  1-1-initialize-project-structure: in-progress
   1-2-clickhouse-database-schema-setup: backlog
   1-3-clickhouse-repository-layer: backlog
   1-4-basic-log-query-service: backlog

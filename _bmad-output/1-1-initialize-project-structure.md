@@ -1,6 +1,6 @@
 # Story 1.1: initialize-project-structure
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -47,6 +47,16 @@ So that I can begin implementing the log aggregation system with proper foundati
   - [x] Create .github/workflows/test.yml
   - [x] Create .github/workflows/build.yml
   - [x] Create .github/workflows/security.yml
+
+### Review Follow-ups (AI Code Review)
+
+- [ ] [AI-Review][CRITICAL] Fix missing go.sum entries - run `go mod tidy` when network connectivity available [go.mod:requires]
+- [ ] [AI-Review][HIGH] Verify tests actually pass after dependency resolution [pkg/config/config_test.go, pkg/apiserver/apiserver_test.go]
+- [ ] [AI-Review][MEDIUM] Document git modification changes in File List [pkg/config/config_test.go]
+- [ ] [AI-Review][MEDIUM] Complete implementation of empty directory structures [pkg/middleware/, pkg/constants/, pkg/filters/, pkg/response/]
+- [ ] [AI-Review][MEDIUM] Validate Makefile targets work correctly after dependency resolution [Makefile:test,build,deps]
+- [ ] [AI-Review][LOW] Replace hardcoded version strings with build-time variables [pkg/apiserver/apiserver.go:106, README.md:line89]
+- [ ] [AI-Review][LOW] Update README dependency resolution instructions for offline development [README.md:Quick Start section]
 
 ## Dev Notes
 

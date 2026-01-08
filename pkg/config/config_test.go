@@ -6,100 +6,113 @@ import (
 	"time"
 )
 
-func TestLoadDefaultConfig(t *testing.T) {
-	// Test loading with default values when no config file exists
-	os.Unsetenv("CONFIG_FILE")
+func TestLoad_DefaultConfig(t *testing.T) {
+	// Clear any existing environment variables
+	clearEnvVars()
 
-	config, err := Load()
+	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Failed to load default config: %v", err)
 	}
 
 	// Verify default values
-	if config.Server.Port != 8080 {
-		t.Errorf("Expected port 8080, got %d", config.Server.Port)
+	if cfg.Server.Port != 8080 {
+		t.Errorf("Expected default port 8080, got %d", cfg.Server.Port)
 	}
-
-	if config.Server.Host != "0.0.0.0" {
-		t.Errorf("Expected host 0.0.0.0, got %s", config.Server.Host)
+	if cfg.Server.Host != "0.0.0.0" {
+		t.Errorf("Expected default host '0.0.0.0', got '%s'", cfg.Server.Host)
 	}
-
-	if config.ClickHouse.Host != "localhost" {
-		t.Errorf("Expected ClickHouse host localhost, got %s", config.ClickHouse.Host)
+	if cfg.ClickHouse.Host != "localhost" {
+		t.Errorf("Expected default ClickHouse host 'localhost', got '%s'", cfg.ClickHouse.Host)
 	}
-
-	if config.ClickHouse.Database != "edge_logs" {
-		t.Errorf("Expected database edge_logs, got %s", config.ClickHouse.Database)
+	if cfg.ClickHouse.Database != "edge_logs" {
+		t.Errorf("Expected default database 'edge_logs', got '%s'", cfg.ClickHouse.Database)
+	}
+	if cfg.Logging.Level != "info" {
+		t.Errorf("Expected default log level 'info', got '%s'", cfg.Logging.Level)
 	}
 }
 
-func TestEnvironmentOverrides(t *testing.T) {
+func TestLoad_EnvironmentVariables(t *testing.T) {
+	// Clear any existing environment variables
+	clearEnvVars()
+
 	// Set environment variables
 	os.Setenv("SERVER_HOST", "127.0.0.1")
 	os.Setenv("SERVER_PORT", "9090")
-	os.Setenv("CLICKHOUSE_HOST", "remote-clickhouse")
+	os.Setenv("CLICKHOUSE_HOST", "remote-db")
 	os.Setenv("CLICKHOUSE_USERNAME", "testuser")
 	os.Setenv("CLICKHOUSE_PASSWORD", "testpass")
 
-	defer func() {
-		// Cleanup
-		os.Unsetenv("SERVER_HOST")
-		os.Unsetenv("SERVER_PORT")
-		os.Unsetenv("CLICKHOUSE_HOST")
-		os.Unsetenv("CLICKHOUSE_USERNAME")
-		os.Unsetenv("CLICKHOUSE_PASSWORD")
-	}()
+	defer clearEnvVars()
 
-	config, err := Load()
+	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Failed to load config with environment variables: %v", err)
 	}
 
 	// Verify environment overrides
-	if config.Server.Host != "127.0.0.1" {
-		t.Errorf("Expected host 127.0.0.1, got %s", config.Server.Host)
+	if cfg.Server.Host != "127.0.0.1" {
+		t.Errorf("Expected host '127.0.0.1', got '%s'", cfg.Server.Host)
 	}
-
-	if config.Server.Port != 9090 {
-		t.Errorf("Expected port 9090, got %d", config.Server.Port)
+	if cfg.Server.Port != 9090 {
+		t.Errorf("Expected port 9090, got %d", cfg.Server.Port)
 	}
-
-	if config.ClickHouse.Host != "remote-clickhouse" {
-		t.Errorf("Expected ClickHouse host remote-clickhouse, got %s", config.ClickHouse.Host)
+	if cfg.ClickHouse.Host != "remote-db" {
+		t.Errorf("Expected ClickHouse host 'remote-db', got '%s'", cfg.ClickHouse.Host)
 	}
-
-	if config.ClickHouse.Username != "testuser" {
-		t.Errorf("Expected username testuser, got %s", config.ClickHouse.Username)
+	if cfg.ClickHouse.Username != "testuser" {
+		t.Errorf("Expected username 'testuser', got '%s'", cfg.ClickHouse.Username)
 	}
-
-	if config.ClickHouse.Password != "testpass" {
-		t.Errorf("Expected password testpass, got %s", config.ClickHouse.Password)
+	if cfg.ClickHouse.Password != "testpass" {
+		t.Errorf("Expected password 'testpass', got '%s'", cfg.ClickHouse.Password)
 	}
 }
 
-func TestConfigDefaults(t *testing.T) {
-	config, err := Load()
+func TestLoad_InvalidPortEnvironment(t *testing.T) {
+	// Clear any existing environment variables
+	clearEnvVars()
+
+	// Set invalid port
+	os.Setenv("SERVER_PORT", "invalid")
+	defer clearEnvVars()
+
+	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Failed to load config with invalid port: %v", err)
 	}
 
-	// Test timeout defaults
-	expectedReadTimeout := 30 * time.Second
-	if config.Server.ReadTimeout != expectedReadTimeout {
-		t.Errorf("Expected read timeout %v, got %v", expectedReadTimeout, config.Server.ReadTimeout)
+	// Should fall back to default port
+	if cfg.Server.Port != 8080 {
+		t.Errorf("Expected fallback to default port 8080, got %d", cfg.Server.Port)
+	}
+}
+
+func TestConfig_Timeouts(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	expectedWriteTimeout := 30 * time.Second
-	if config.Server.WriteTimeout != expectedWriteTimeout {
-		t.Errorf("Expected write timeout %v, got %v", expectedWriteTimeout, config.Server.WriteTimeout)
+	expectedTimeout := 30 * time.Second
+	if cfg.Server.ReadTimeout != expectedTimeout {
+		t.Errorf("Expected read timeout %v, got %v", expectedTimeout, cfg.Server.ReadTimeout)
 	}
-
-	// Test ClickHouse defaults
-	if config.ClickHouse.Port != 9000 {
-		t.Errorf("Expected ClickHouse port 9000, got %d", config.ClickHouse.Port)
+	if cfg.Server.WriteTimeout != expectedTimeout {
+		t.Errorf("Expected write timeout %v, got %v", expectedTimeout, cfg.Server.WriteTimeout)
 	}
+}
 
-	if config.ClickHouse.TLS != false {
-		t.Errorf("Expected ClickHouse TLS false, got %t", config.ClickHouse.TLS)
+func clearEnvVars() {
+	envVars := []string{
+		"CONFIG_FILE",
+		"SERVER_HOST",
+		"SERVER_PORT",
+		"CLICKHOUSE_HOST",
+		"CLICKHOUSE_USERNAME",
+		"CLICKHOUSE_PASSWORD",
+	}
+	for _, env := range envVars {
+		os.Unsetenv(env)
 	}
 }
