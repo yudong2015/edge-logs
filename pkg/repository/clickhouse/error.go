@@ -34,24 +34,24 @@ type ErrorType string
 
 const (
 	// Connection related errors
-	ErrorTypeConnection    ErrorType = "connection_error"
-	ErrorTypeTimeout       ErrorType = "timeout_error"
+	ErrorTypeConnection     ErrorType = "connection_error"
+	ErrorTypeTimeout        ErrorType = "timeout_error"
 	ErrorTypeAuthentication ErrorType = "auth_error"
 
 	// Query related errors
-	ErrorTypeQuery         ErrorType = "query_error"
-	ErrorTypeSyntax        ErrorType = "syntax_error"
-	ErrorTypeValidation    ErrorType = "validation_error"
+	ErrorTypeQuery      ErrorType = "query_error"
+	ErrorTypeSyntax     ErrorType = "syntax_error"
+	ErrorTypeValidation ErrorType = "validation_error"
 
 	// Data related errors
-	ErrorTypeDataFormat    ErrorType = "data_format_error"
-	ErrorTypeConstraint    ErrorType = "constraint_error"
-	ErrorTypeNotFound      ErrorType = "not_found_error"
+	ErrorTypeDataFormat ErrorType = "data_format_error"
+	ErrorTypeConstraint ErrorType = "constraint_error"
+	ErrorTypeNotFound   ErrorType = "not_found_error"
 
 	// System related errors
-	ErrorTypeSystem        ErrorType = "system_error"
-	ErrorTypeResource      ErrorType = "resource_error"
-	ErrorTypeUnknown       ErrorType = "unknown_error"
+	ErrorTypeSystem   ErrorType = "system_error"
+	ErrorTypeResource ErrorType = "resource_error"
+	ErrorTypeUnknown  ErrorType = "unknown_error"
 )
 
 // MapClickHouseError maps ClickHouse errors to repository errors with proper categorization

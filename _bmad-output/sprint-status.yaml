@@ -48,7 +48,7 @@ development_status:
   epic-1: in-progress
   1-1-initialize-project-structure: done
   1-2-clickhouse-database-schema-setup: done
-  1-3-clickhouse-repository-layer: ready-for-dev
+  1-3-clickhouse-repository-layer: done
   1-4-basic-log-query-service: backlog
   1-5-core-api-handler-with-go-restful: backlog
   epic-1-retrospective: optional

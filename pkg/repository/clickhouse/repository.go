@@ -389,7 +389,7 @@ func (r *ClickHouseRepository) validateLogEntry(log *clickhouse.LogEntry) error 
 	}
 
 	// Validate timestamp is not too far in the future
-	if log.Timestamp.After(time.Now().Add(1*time.Hour)) {
+	if log.Timestamp.After(time.Now().Add(1 * time.Hour)) {
 		return fmt.Errorf("timestamp is too far in the future")
 	}
 

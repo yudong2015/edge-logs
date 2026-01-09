@@ -13,8 +13,8 @@ type QueryStats struct {
 	QueryID         string    `ch:"query_id"`
 	Dataset         string    `ch:"dataset"`
 	UserID          string    `ch:"user_id"`
-	QueryType       string    `ch:"query_type"`       // 'search', 'aggregation', 'export'
-	QueryParams     string    `ch:"query_params"`     // JSON
+	QueryType       string    `ch:"query_type"`   // 'search', 'aggregation', 'export'
+	QueryParams     string    `ch:"query_params"` // JSON
 	ExecutionTimeMs uint32    `ch:"execution_time_ms"`
 	RowsExamined    uint64    `ch:"rows_examined"`
 	RowsReturned    uint64    `ch:"rows_returned"`
@@ -187,14 +187,14 @@ func (mr *MetricsRecorder) GetPerformanceMetrics(ctx context.Context, dataset st
 
 // PerformanceMetrics represents aggregated performance metrics
 type PerformanceMetrics struct {
-	Dataset              string    `json:"dataset"`
-	TotalQueries         uint64    `json:"total_queries"`
-	AvgExecutionTimeMs   float64   `json:"avg_execution_time_ms"`
-	P95ExecutionTimeMs   float64   `json:"p95_execution_time_ms"`
-	P99ExecutionTimeMs   float64   `json:"p99_execution_time_ms"`
-	MaxExecutionTimeMs   uint32    `json:"max_execution_time_ms"`
-	TotalRowsReturned    uint64    `json:"total_rows_returned"`
-	Since                time.Time `json:"since"`
+	Dataset            string    `json:"dataset"`
+	TotalQueries       uint64    `json:"total_queries"`
+	AvgExecutionTimeMs float64   `json:"avg_execution_time_ms"`
+	P95ExecutionTimeMs float64   `json:"p95_execution_time_ms"`
+	P99ExecutionTimeMs float64   `json:"p99_execution_time_ms"`
+	MaxExecutionTimeMs uint32    `json:"max_execution_time_ms"`
+	TotalRowsReturned  uint64    `json:"total_rows_returned"`
+	Since              time.Time `json:"since"`
 }
 
 // generateQueryID generates a unique query ID
@@ -204,10 +204,10 @@ func generateQueryID() string {
 
 // QueryMetricsCollector collects runtime query metrics
 type QueryMetricsCollector struct {
-	startTime    time.Time
-	dataset      string
-	queryType    string
-	queryParams  string
+	startTime   time.Time
+	dataset     string
+	queryType   string
+	queryParams string
 }
 
 // NewQueryMetricsCollector creates a new query metrics collector

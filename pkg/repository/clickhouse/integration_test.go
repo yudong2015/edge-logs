@@ -378,10 +378,10 @@ func testQueryWithFilters(t *testing.T, suite *IntegrationTestSuite) {
 	time.Sleep(200 * time.Millisecond)
 
 	tests := []struct {
-		name           string
-		queryReq       *request.LogQueryRequest
+		name            string
+		queryReq        *request.LogQueryRequest
 		expectedMinRows int
-		verifyFunc     func(results []chModel.LogEntry) bool
+		verifyFunc      func(results []chModel.LogEntry) bool
 	}{
 		{
 			name: "filter by severity",

@@ -1,6 +1,6 @@
 # Story 1.3: clickhouse-repository-layer
 
-Status: in-progress
+Status: done
 
 <!-- 注意: 验证是可选的。在dev-story之前运行validate-create-story进行质量检查。 -->
 
