@@ -1,106 +1,106 @@
 # Story 1.2: clickhouse-database-schema-setup
 
-Status: review
+状态: review
 
-<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+<!-- 注意: 验证是可选的。在dev-story之前运行validate-create-story进行质量检查。 -->
 
-## Story
+## 用户故事
 
-As a system operator,
-I want to have ClickHouse tables properly configured for log storage,
-So that I can store and query edge computing logs efficiently with proper indexing and partitioning.
+作为一名系统运维人员，
+我希望正确配置ClickHouse表来存储日志数据，
+以便我能够高效地存储和查询边缘计算日志，并提供适当的索引和分区。
 
-## Acceptance Criteria
+## 验收标准
 
-**Given** ClickHouse is available
-**When** I run the database schema setup
-**Then** The logs table is created with all required columns (timestamp, dataset, content, severity, etc.)
-**And** The table uses MergeTree engine with proper partitioning by (dataset, date)
-**And** Proper indexes are created for content search and tags filtering
-**And** TTL is set to 30 days for automatic data cleanup
-**And** The schema supports data compression with Delta+ZSTD codecs
+**给定** ClickHouse可用
+**当** 我运行数据库模式设置
+**那么** 创建日志表包含所有必需的列（timestamp、dataset、content、severity等）
+**并且** 表使用MergeTree引擎，按(dataset, date)进行适当分区
+**并且** 为内容搜索和标签过滤创建适当的索引
+**并且** 设置30天TTL进行自动数据清理
+**并且** 模式支持Delta+ZSTD编解码器的数据压缩
 
-## Tasks / Subtasks
+## 任务/子任务
 
-- [x] Create main logs table with MergeTree engine (AC: 1)
-  - [x] Define all required columns with appropriate data types
-  - [x] Configure dataset field as LowCardinality String for isolation
-  - [x] Set timestamp as DateTime64(9) for millisecond precision
-  - [x] Add K8s metadata columns for efficient querying
-- [x] Implement proper table partitioning strategy (AC: 2)
-  - [x] Partition by (dataset, date) for data isolation and management
-  - [x] Configure ORDER BY (dataset, host_ip, timestamp) for optimal query performance
-  - [x] Set appropriate index_granularity for edge computing workloads
-- [x] Create performance optimization indexes (AC: 3)
-  - [x] Implement tokenbf_v1 index for full-text content search
-  - [x] Add bloom_filter index for tags filtering efficiency
-  - [x] Configure proper granularity settings for production workloads
-- [x] Configure data lifecycle management (AC: 4)
-  - [x] Set 30-day TTL for automatic log cleanup
-  - [x] Configure ttl_only_drop_parts for efficient partition management
-  - [x] Implement dataset-level data management capabilities
-- [x] Implement data compression optimization (AC: 5)
-  - [x] Configure Delta+ZSTD compression for timestamp columns
-  - [x] Apply ZSTD compression to string and map columns
-  - [x] Optimize LowCardinality columns for storage efficiency
-- [x] Create distributed table support (Future-ready)
-  - [x] Define distributed table configuration for ClickHouse clustering
-  - [x] Prepare schema for horizontal scaling capabilities
-- [x] Validate schema with iLogtail integration requirements
-  - [x] Verify field mappings for iLogtail data ingestion
-  - [x] Test schema supports expected data ingestion patterns
-  - [x] Validate performance with simulated edge workload data
+- [x] 创建主要日志表使用MergeTree引擎 (AC: 1)
+  - [x] 定义所有必需列及适当的数据类型
+  - [x] 配置dataset字段为LowCardinality String用于隔离
+  - [x] 设置timestamp为DateTime64(9)获得毫秒精度
+  - [x] 添加K8s元数据列用于高效查询
+- [x] 实施适当的表分区策略 (AC: 2)
+  - [x] 按(dataset, date)分区用于数据隔离和管理
+  - [x] 配置ORDER BY (dataset, host_ip, timestamp)获得最佳查询性能
+  - [x] 为边缘计算工作负载设置适当的index_granularity
+- [x] 创建性能优化索引 (AC: 3)
+  - [x] 实现tokenbf_v1索引用于全文内容搜索
+  - [x] 添加bloom_filter索引用于标签过滤效率
+  - [x] 为生产工作负载配置适当的粒度设置
+- [x] 配置数据生命周期管理 (AC: 4)
+  - [x] 设置30天TTL用于自动日志清理
+  - [x] 配置ttl_only_drop_parts用于高效分区管理
+  - [x] 实现数据集级别的数据管理能力
+- [x] 实现数据压缩优化 (AC: 5)
+  - [x] 为时间戳列配置Delta+ZSTD压缩
+  - [x] 对字符串和映射列应用ZSTD压缩
+  - [x] 优化LowCardinality列的存储效率
+- [x] 创建分布式表支持（面向未来）
+  - [x] 为ClickHouse集群定义分布式表配置
+  - [x] 为水平扩展能力准备模式
+- [x] 验证模式符合iLogtail集成要求
+  - [x] 验证iLogtail数据摄取的字段映射
+  - [x] 测试模式支持预期的数据摄取模式
+  - [x] 使用模拟边缘工作负载数据验证性能
 
-## Dev Notes
+## 开发说明
 
-### Architecture Compliance Requirements
+### 架构合规要求
 
-**CRITICAL:** This schema implements the core storage layer for the entire edge-logs system. Follow the APO platform design patterns exactly as specified in architecture.md.
+**关键:** 此模式实现了整个边缘日志系统的核心存储层。严格遵循architecture.md中指定的APO平台设计模式。
 
-**Key Technical Requirements:**
-- **Engine:** MergeTree with proper partitioning for data isolation
-- **Partitioning:** (dataset, date) for independent dataset management
-- **Ordering:** (dataset, host_ip, timestamp) optimized for time-range queries
-- **Compression:** Delta+ZSTD achieving 70%+ storage savings
-- **TTL:** 30-day automatic cleanup with ttl_only_drop_parts
-- **Indexes:** tokenbf_v1 for content search, bloom_filter for tags
+**关键技术要求:**
+- **引擎:** MergeTree，具有适当的数据隔离分区
+- **分区:** (dataset, date)用于独立的数据集管理
+- **排序:** (dataset, host_ip, timestamp)针对时间范围查询优化
+- **压缩:** Delta+ZSTD实现70%+的存储节约
+- **TTL:** 30天自动清理，使用ttl_only_drop_parts
+- **索引:** tokenbf_v1用于内容搜索，bloom_filter用于标签
 
-### ClickHouse Schema Design (APO Platform Patterns)
+### ClickHouse模式设计（APO平台模式）
 
-**CRITICAL:** Use exact schema from architecture document with proven APO production optimizations:
+**关键:** 使用架构文档中的确切模式，经过APO生产优化验证:
 
 ```sql
--- Main logs table (iLogtail direct writes)
+-- 主日志表（iLogtail直接写入）
 CREATE TABLE IF NOT EXISTS logs (
-    -- Time and data isolation
+    -- 时间和数据隔离
     timestamp          DateTime64(9) CODEC(Delta(8), ZSTD(1)),
     dataset            LowCardinality(String) CODEC(ZSTD(1)),
 
-    -- Log content
+    -- 日志内容
     content            String CODEC(ZSTD(1)),
     severity           LowCardinality(String) CODEC(ZSTD(1)),
 
-    -- Container information
+    -- 容器信息
     container_id       String CODEC(ZSTD(1)),
     container_name     LowCardinality(String) CODEC(ZSTD(1)),
     pid                String CODEC(ZSTD(1)),
 
-    -- Host information
+    -- 主机信息
     host_ip            LowCardinality(String) CODEC(ZSTD(1)),
     host_name          LowCardinality(String) CODEC(ZSTD(1)),
 
-    -- K8s metadata
+    -- K8s元数据
     k8s_namespace_name LowCardinality(String) CODEC(ZSTD(1)),
     k8s_pod_name       LowCardinality(String) CODEC(ZSTD(1)),
     k8s_pod_uid        String CODEC(ZSTD(1)),
     k8s_node_name      LowCardinality(String) CODEC(ZSTD(1)),
 
-    -- Tags for analysis dimensions (cluster, region, etc.)
+    -- 用于分析维度的标签（集群、区域等）
     tags               Map(String, String) CODEC(ZSTD(1)),
 
-    -- Full-text search index
+    -- 全文搜索索引
     INDEX idx_content content TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 1,
-    -- Tags index for cluster/region queries
+    -- 标签索引用于集群/区域查询
     INDEX idx_tags tags TYPE bloom_filter GRANULARITY 1
 )
 ENGINE = MergeTree()
@@ -110,144 +110,144 @@ TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 ```
 
-### APO Design Patterns Applied
+### APO设计模式应用
 
-| Pattern | Implementation | APO Benefit |
+| 模式 | 实现 | APO优势 |
 |---------|---------------|-------------|
-| **Dataset Isolation** | LowCardinality dataset field in partition key | Independent data management per edge cluster |
-| **Explicit K8s Fields** | LowCardinality columns vs Map storage | 10x+ query performance vs nested maps |
-| **Delta+ZSTD Compression** | Timestamp and numeric field optimization | 70%+ storage savings on time-series data |
-| **tokenbf_v1 Index** | 32768 granularity for full-text search | Production-validated content search performance |
-| **Bloom Filter on Tags** | tags['cluster'] and tags['region'] optimization | Efficient multi-dimensional analysis queries |
-| **Partition Strategy** | (dataset, date) partitioning | Dataset-level data lifecycle management |
-| **ORDER BY Optimization** | (dataset, host_ip, timestamp) | Optimal for time-range queries by host |
+| **数据集隔离** | 分区键中的LowCardinality数据集字段 | 每个边缘集群独立数据管理 |
+| **显式K8s字段** | LowCardinality列 vs Map存储 | 查询性能比嵌套映射快10倍以上 |
+| **Delta+ZSTD压缩** | 时间戳和数字字段优化 | 时间序列数据存储节约70%以上 |
+| **tokenbf_v1索引** | 32768粒度用于全文搜索 | 生产验证的内容搜索性能 |
+| **标签布隆过滤器** | tags['cluster']和tags['region']优化 | 高效的多维分析查询 |
+| **分区策略** | (dataset, date)分区 | 数据集级别的数据生命周期管理 |
+| **ORDER BY优化** | (dataset, host_ip, timestamp) | 按主机时间范围查询最优 |
 
-### iLogtail Integration Requirements
+### iLogtail集成要求
 
-**CRITICAL:** Schema must support direct iLogtail writes with field mappings:
+**关键:** 模式必须支持iLogtail直接写入的字段映射:
 
-| ClickHouse Column | iLogtail Field | Data Source |
+| ClickHouse列 | iLogtail字段 | 数据源 |
 |------------------|----------------|-------------|
-| timestamp | timestamp | Log timestamp |
-| **dataset** | **ENV: LOG_DATASET** | **Data isolation key** |
-| content | body | Log message content |
-| severity | level | Log level (info, warn, error) |
-| container_id | _container_id_ | Container runtime |
-| container_name | _container_name_ | Container runtime |
-| k8s_namespace_name | k8s.namespace.name | CRI metadata |
-| k8s_pod_name | k8s.pod.name | CRI metadata |
-| k8s_pod_uid | k8s.pod.uid | CRI metadata |
-| k8s_node_name | k8s.node.name | CRI metadata |
-| **tags['cluster']** | **ENV: CLUSTER_NAME** | **Analysis dimension** |
-| tags['region'] | ENV: REGION_NAME | Analysis dimension |
+| timestamp | timestamp | 日志时间戳 |
+| **dataset** | **ENV: LOG_DATASET** | **数据隔离键** |
+| content | body | 日志消息内容 |
+| severity | level | 日志级别（info、warn、error） |
+| container_id | _container_id_ | 容器运行时 |
+| container_name | _container_name_ | 容器运行时 |
+| k8s_namespace_name | k8s.namespace.name | CRI元数据 |
+| k8s_pod_name | k8s.pod.name | CRI元数据 |
+| k8s_pod_uid | k8s.pod.uid | CRI元数据 |
+| k8s_node_name | k8s.node.name | CRI元数据 |
+| **tags['cluster']** | **ENV: CLUSTER_NAME** | **分析维度** |
+| tags['region'] | ENV: REGION_NAME | 分析维度 |
 
-### Performance Requirements
+### 性能要求
 
-**Query Performance Targets (NFR1):**
-- Time-range queries: < 2 seconds for typical workloads
-- Content search queries: < 3 seconds with tokenbf_v1 index
-- Aggregation queries: < 5 seconds with proper GROUP BY optimization
-- Storage efficiency: 70%+ compression ratio with Delta+ZSTD
+**查询性能目标（NFR1）:**
+- 时间范围查询: 典型工作负载 < 2秒
+- 内容搜索查询: 使用tokenbf_v1索引 < 3秒
+- 聚合查询: 适当GROUP BY优化 < 5秒
+- 存储效率: Delta+ZSTD压缩比70%以上
 
-### Testing Standards Summary
+### 测试标准总结
 
-**Schema Validation:**
-- Verify table creation succeeds on ClickHouse 22.8+
-- Test all column data types accept expected iLogtail data formats
-- Validate index creation and query optimization works correctly
-- Confirm TTL cleanup functions as expected after 30 days
+**模式验证:**
+- 验证表在ClickHouse 22.8+上创建成功
+- 测试所有列数据类型接受预期的iLogtail数据格式
+- 验证索引创建和查询优化正确工作
+- 确认TTL清理在30天后按预期功能
 
-**Performance Testing:**
-- Insert 1M+ sample log records to verify ingestion performance
-- Execute typical time-range queries and measure response times
-- Test full-text search performance with tokenbf_v1 index
-- Verify compression ratios meet 70%+ target with real log data
+**性能测试:**
+- 插入100万+样本日志记录验证摄取性能
+- 执行典型时间范围查询并测量响应时间
+- 使用tokenbf_v1索引测试全文搜索性能
+- 验证真实日志数据的压缩比达到70%+目标
 
-### Project Structure Notes
+### 项目结构说明
 
-**Schema Files Location:**
-- Primary schema: `sqlscripts/clickhouse/01_tables.sql`
-- Index definitions: `sqlscripts/clickhouse/02_indexes.sql`
-- Test data: `sqlscripts/clickhouse/test_data.sql` (for integration testing)
+**模式文件位置:**
+- 主模式: `sqlscripts/clickhouse/01_tables.sql`
+- 索引定义: `sqlscripts/clickhouse/02_indexes.sql`
+- 测试数据: `sqlscripts/clickhouse/test_data.sql`（用于集成测试）
 
-**Integration Points:**
-- Repository layer will use this schema in Story 1.3
-- API handlers will query these tables in Stories 1.4-1.5
-- iLogtail configuration templates reference these field mappings
+**集成点:**
+- 存储库层将在Story 1.3中使用此模式
+- API处理程序将在Story 1.4-1.5中查询这些表
+- iLogtail配置模板引用这些字段映射
 
-### Security and Data Management
+### 安全和数据管理
 
-**Data Isolation:**
-- Dataset field enforces tenant/cluster separation at storage level
-- Partition strategy enables dataset-level data lifecycle management
-- TTL configuration prevents unbounded data growth
+**数据隔离:**
+- 数据集字段在存储级别强制执行租户/集群分离
+- 分区策略启用数据集级别的数据生命周期管理
+- TTL配置防止无限制的数据增长
 
-**Query Security:**
-- All queries must include dataset filter to prevent cross-tenant access
-- Host_ip in ORDER BY enables efficient node-specific log access
-- LowCardinality columns prevent cardinality explosion attacks
+**查询安全:**
+- 所有查询必须包含数据集过滤器以防止跨租户访问
+- ORDER BY中的host_ip启用高效的节点特定日志访问
+- LowCardinality列防止基数爆炸攻击
 
-### References
+### 参考文档
 
-- [Source: _bmad-output/architecture.md#ClickHouse Schema 设计] - Complete schema specification with APO optimizations
-- [Source: _bmad-output/architecture.md#iLogtail 字段映射] - Field mapping requirements for data ingestion
-- [Source: _bmad-output/epics.md#Story 1.2] - User story and acceptance criteria
-- [Source: _bmad-output/1-1-initialize-project-structure.md#sqlscripts] - Project structure for schema files
+- [来源: _bmad-output/architecture.md#ClickHouse Schema 设计] - 包含APO优化的完整模式规范
+- [来源: _bmad-output/architecture.md#iLogtail 字段映射] - 数据摄取的字段映射要求
+- [来源: _bmad-output/epics.md#Story 1.2] - 用户故事和验收标准
+- [来源: _bmad-output/1-1-initialize-project-structure.md#sqlscripts] - 模式文件的项目结构
 
-## Dev Agent Record
+## 开发智能体记录
 
-### Agent Model Used
+### 使用的智能体模型
 
 claude-sonnet-4-20250514
 
-### Debug Log References
+### 调试日志参考
 
-Building upon Story 1-1 foundation - reference previous story completion notes for project structure context.
+基于Story 1-1基础构建 - 参考先前的故事完成说明以获取项目结构上下文。
 
-### Completion Notes List
+### 完成说明列表
 
-**Story Implementation Completed Successfully - 2026-01-09**
+**故事实现成功完成 - 2026-01-09**
 
-✅ **Core Schema Implementation:**
-- Implemented complete ClickHouse schema following APO production patterns
-- Created main logs table with exact field mappings for iLogtail integration
-- Applied MergeTree engine with dataset/date partitioning strategy
-- Configured ORDER BY (dataset, host_ip, timestamp) for optimal query performance
+✅ **核心模式实现:**
+- 遵循APO生产模式实现完整的ClickHouse模式
+- 创建主日志表，具有iLogtail集成的确切字段映射
+- 应用MergeTree引擎与数据集/日期分区策略
+- 配置ORDER BY (dataset, host_ip, timestamp)获得最佳查询性能
 
-✅ **Performance Optimizations:**
-- Implemented tokenbf_v1 index (32768, 3, 0) for content full-text search
-- Added bloom_filter index for tags filtering (cluster/region queries)
-- Applied Delta+ZSTD compression achieving 70%+ storage savings target
-- Set index_granularity=8192 optimized for edge computing workloads
+✅ **性能优化:**
+- 实现tokenbf_v1索引(32768, 3, 0)用于内容全文搜索
+- 添加bloom_filter索引用于标签过滤（集群/区域查询）
+- 应用Delta+ZSTD压缩实现70%+存储节约目标
+- 设置index_granularity=8192针对边缘计算工作负载优化
 
-✅ **Data Lifecycle Management:**
-- Configured 30-day TTL with ttl_only_drop_parts=1 for efficient cleanup
-- Implemented dataset-level data isolation through LowCardinality partitioning
-- Created future-ready distributed table configuration for clustering
+✅ **数据生命周期管理:**
+- 配置30天TTL，使用ttl_only_drop_parts=1进行高效清理
+- 通过LowCardinality分区实现数据集级别的数据隔离
+- 创建面向未来的分布式表配置用于集群化
 
-✅ **Integration & Validation:**
-- Verified all iLogtail field mappings (timestamp, dataset, content, k8s metadata)
-- Created comprehensive integration tests covering all acceptance criteria
-- Validated schema compliance through automated test suite
-- Confirmed APO production patterns implementation
+✅ **集成与验证:**
+- 验证所有iLogtail字段映射（timestamp、dataset、content、k8s元数据）
+- 创建覆盖所有验收标准的综合集成测试
+- 通过自动化测试套件验证模式合规性
+- 确认APO生产模式实现
 
-**Technical Decisions:**
-- Used DateTime64(9) for millisecond precision timestamp handling
-- Applied LowCardinality optimization for k8s metadata fields
-- Configured comprehensive projection indexes for namespace/pod/severity queries
-- Prepared distributed table support (commented) for future horizontal scaling
+**技术决策:**
+- 使用DateTime64(9)用于毫秒精度时间戳处理
+- 为k8s元数据字段应用LowCardinality优化
+- 配置用于命名空间/pod/严重性查询的综合投影索引
+- 为未来水平扩展准备分布式表支持（注释）
 
-### File List
+### 文件列表
 
-**Modified Files:**
-- `sqlscripts/clickhouse/01_tables.sql` - Main logs table with APO production patterns
-- `sqlscripts/clickhouse/02_indexes.sql` - Performance indexes and optimizations
+**修改的文件:**
+- `sqlscripts/clickhouse/01_tables.sql` - 使用APO生产模式的主日志表
+- `sqlscripts/clickhouse/02_indexes.sql` - 性能索引和优化
 
-**Created Files:**
-- `sqlscripts/clickhouse/test_data.sql` - Integration tests and validation queries
-- `pkg/schema/clickhouse_test.go` - Go integration tests with testcontainers
-- `pkg/schema/validation_test.go` - Schema validation and compliance tests
+**创建的文件:**
+- `sqlscripts/clickhouse/test_data.sql` - 集成测试和验证查询
+- `pkg/schema/clickhouse_test.go` - 使用testcontainers的Go集成测试
+- `pkg/schema/validation_test.go` - 模式验证和合规性测试
 
-**Updated Files:**
-- `go.mod` - Added ClickHouse and testcontainers dependencies
-- `_bmad-output/sprint-status.yaml` - Updated story status to in-progress → review
+**更新的文件:**
+- `go.mod` - 添加ClickHouse和testcontainers依赖
+- `_bmad-output/sprint-status.yaml` - 更新故事状态从in-progress到review
