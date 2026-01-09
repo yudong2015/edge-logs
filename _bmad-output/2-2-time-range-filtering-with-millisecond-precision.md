@@ -1,6 +1,6 @@
 # Story 2.2: Time-range filtering with millisecond precision
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
