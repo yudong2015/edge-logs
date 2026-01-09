@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/emicklei/go-restful/v3"
@@ -154,19 +155,19 @@ func (h *LogHandler) handleGenericTimeError(resp *restful.Response, err error, d
 
 	// Map service layer errors to appropriate HTTP status codes
 	switch {
-	case contains(errMsg, "time validation failed"),
-		contains(errMsg, "time format"),
-		contains(errMsg, "time range error"):
+	case strings.Contains(errMsg, "time validation failed"),
+		strings.Contains(errMsg, "time format"),
+		strings.Contains(errMsg, "time range error"):
 		statusCode = http.StatusBadRequest
 		errorType = "validation_failed"
 
-	case contains(errMsg, "time range too large"),
-		contains(errMsg, "maximum allowed span"):
+	case strings.Contains(errMsg, "time range too large"),
+		strings.Contains(errMsg, "maximum allowed span"):
 		statusCode = http.StatusBadRequest
 		errorType = "range_too_large"
 
-	case contains(errMsg, "future"),
-		contains(errMsg, "cannot be in the future"):
+	case strings.Contains(errMsg, "future"),
+		strings.Contains(errMsg, "cannot be in the future"):
 		statusCode = http.StatusBadRequest
 		errorType = "future_time_not_allowed"
 

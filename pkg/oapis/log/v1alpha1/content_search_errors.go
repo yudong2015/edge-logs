@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/emicklei/go-restful/v3"
 	"k8s.io/klog/v2"
@@ -42,15 +43,15 @@ func (h *LogHandler) handleContentSearchError(resp *restful.Response, err error,
 	errMsg := err.Error()
 
 	switch {
-	case contains(errMsg, "content search validation failed"):
+	case strings.Contains(errMsg, "content search validation failed"):
 		h.handleContentSearchValidationError(resp, err, dataset)
-	case contains(errMsg, "search complexity"):
+	case strings.Contains(errMsg, "search complexity"):
 		h.handleContentSearchComplexityError(resp, err, dataset)
-	case contains(errMsg, "unsafe regex pattern"):
+	case strings.Contains(errMsg, "unsafe regex pattern"):
 		h.handleUnsafeRegexError(resp, err, dataset)
-	case contains(errMsg, "search query too long"):
+	case strings.Contains(errMsg, "search query too long"):
 		h.handleSearchQueryTooLongError(resp, err, dataset)
-	case contains(errMsg, "too many search terms"):
+	case strings.Contains(errMsg, "too many search terms"):
 		h.handleTooManyTermsError(resp, err, dataset)
 	default:
 		h.handleGenericContentSearchError(resp, err, dataset)
@@ -106,8 +107,8 @@ func (h *LogHandler) handleContentSearchValidationError(resp *restful.Response, 
 		},
 	}
 
-	if h.metrics != nil {
-		h.metrics.RecordSearchError(dataset, "validation_error")
+	if h.contentMetrics != nil {
+		h.contentMetrics.RecordSearchError(dataset, "validation_error")
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusBadRequest, errorResp)
@@ -134,8 +135,8 @@ func (h *LogHandler) handleContentSearchComplexityError(resp *restful.Response, 
 		},
 	}
 
-	if h.metrics != nil {
-		h.metrics.RecordSearchError(dataset, "complexity_error")
+	if h.contentMetrics != nil {
+		h.contentMetrics.RecordSearchError(dataset, "complexity_error")
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusBadRequest, errorResp)
@@ -161,8 +162,8 @@ func (h *LogHandler) handleUnsafeRegexError(resp *restful.Response, err error, d
 		},
 	}
 
-	if h.metrics != nil {
-		h.metrics.RecordSearchError(dataset, "unsafe_regex")
+	if h.contentMetrics != nil {
+		h.contentMetrics.RecordSearchError(dataset, "unsafe_regex")
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusBadRequest, errorResp)
@@ -181,8 +182,8 @@ func (h *LogHandler) handleSearchQueryTooLongError(resp *restful.Response, err e
 		},
 	}
 
-	if h.metrics != nil {
-		h.metrics.RecordSearchError(dataset, "query_too_long")
+	if h.contentMetrics != nil {
+		h.contentMetrics.RecordSearchError(dataset, "query_too_long")
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusBadRequest, errorResp)
@@ -201,8 +202,8 @@ func (h *LogHandler) handleTooManyTermsError(resp *restful.Response, err error, 
 		},
 	}
 
-	if h.metrics != nil {
-		h.metrics.RecordSearchError(dataset, "too_many_terms")
+	if h.contentMetrics != nil {
+		h.contentMetrics.RecordSearchError(dataset, "too_many_terms")
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusBadRequest, errorResp)
@@ -215,26 +216,9 @@ func (h *LogHandler) handleGenericContentSearchError(resp *restful.Response, err
 		Message: "Content search error: " + err.Error(),
 	}
 
-	if h.metrics != nil {
-		h.metrics.RecordSearchError(dataset, "generic_error")
+	if h.contentMetrics != nil {
+		h.contentMetrics.RecordSearchError(dataset, "generic_error")
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusBadRequest, errorResp)
-}
-
-// contains checks if a string contains a substring (case-insensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr ||
-		len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		containsSubstring(s, substr)))
-}
-
-// containsSubstring performs substring search
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

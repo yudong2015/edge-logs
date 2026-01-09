@@ -93,7 +93,7 @@ func TestContentSearchQueryBuilder(t *testing.T) {
 			RelevanceScoring: false,
 		}
 
-		query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+		query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 		assert.NoError(t, err)
 		assert.Contains(t, query, "match(content, ?)")
@@ -114,7 +114,7 @@ func TestContentSearchQueryBuilder(t *testing.T) {
 			RelevanceScoring: false,
 		}
 
-		query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+		query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 		assert.NoError(t, err)
 		assert.Contains(t, query, "content LIKE ?")
@@ -216,7 +216,7 @@ func TestContentSearchQueryBuilder_BooleanOperators(t *testing.T) {
 			RelevanceScoring: false,
 		}
 
-		query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+		query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 		assert.NoError(t, err)
 		assert.Contains(t, query, "position(content, ?) > 0")
@@ -245,7 +245,7 @@ func TestContentSearchQueryBuilder_BooleanOperators(t *testing.T) {
 			RelevanceScoring: false,
 		}
 
-		query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+		query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 		assert.NoError(t, err)
 		assert.Contains(t, query, " OR ")
@@ -303,7 +303,7 @@ func TestContentSearchQueryBuilder_K8sIntegration(t *testing.T) {
 		RelevanceScoring: false,
 	}
 
-	query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+	query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 	assert.NoError(t, err)
 	assert.Contains(t, query, "k8s_namespace_name = ?")
@@ -399,7 +399,7 @@ func TestContentSearchQueryBuilder_ComplexQueries(t *testing.T) {
 			RelevanceScoring: true,
 		}
 
-		query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+		query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 		assert.NoError(t, err)
 

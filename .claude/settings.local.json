@@ -3,7 +3,10 @@
     "allow": [
       "WebSearch",
       "Bash(go mod init:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(go build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

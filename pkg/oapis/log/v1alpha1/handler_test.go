@@ -174,26 +174,3 @@ func TestErrorResponseSerialization(t *testing.T) {
 	assert.Equal(t, float64(400), result["code"])
 	assert.Contains(t, result["message"], "参数解析失败")
 }
-
-// Test Helper Functions
-func TestContains(t *testing.T) {
-	tests := []struct {
-		name     string
-		s        string
-		substr   string
-		expected bool
-	}{
-		{"contains substring", "hello world", "world", true},
-		{"does not contain", "hello world", "goodbye", false},
-		{"empty substring", "hello", "", true},
-		{"same string", "test", "test", true},
-		{"case sensitive", "Hello", "hello", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := contains(tt.s, tt.substr)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}

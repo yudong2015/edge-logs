@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/emicklei/go-restful/v3"
@@ -292,19 +293,19 @@ func (h *LogHandler) mapErrorToStatusCode(err error) int {
 
 	// Check for specific error patterns
 	switch {
-	case contains(errMsg, "dataset is required"),
-		contains(errMsg, "参数"),
-		contains(errMsg, "格式错误"),
-		contains(errMsg, "参数错误"):
+	case strings.Contains(errMsg, "dataset is required"),
+		strings.Contains(errMsg, "参数"),
+		strings.Contains(errMsg, "格式错误"),
+		strings.Contains(errMsg, "参数错误"):
 		return http.StatusBadRequest
 
-	case contains(errMsg, "not found"),
-		contains(errMsg, "不存在"):
+	case strings.Contains(errMsg, "not found"),
+		strings.Contains(errMsg, "不存在"):
 		return http.StatusNotFound
 
-	case contains(errMsg, "connection"),
-		contains(errMsg, "timeout"),
-		contains(errMsg, "connection refused"):
+	case strings.Contains(errMsg, "connection"),
+		strings.Contains(errMsg, "timeout"),
+		strings.Contains(errMsg, "connection refused"):
 		return http.StatusServiceUnavailable
 
 	default:
@@ -312,19 +313,6 @@ func (h *LogHandler) mapErrorToStatusCode(err error) int {
 	}
 }
 
-// contains checks if string contains substring (case sensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
 
 // validateDataset validates dataset parameter with comprehensive rules
 func (h *LogHandler) validateDataset(dataset string) error {
@@ -502,18 +490,18 @@ func (h *LogHandler) analyzeTimeFormat(startTimeStr, endTimeStr string) (string,
 
 	// Determine format type
 	switch {
-	case contains(timeStr, "T") && contains(timeStr, "Z"):
+	case strings.Contains(timeStr, "T") && strings.Contains(timeStr, "Z"):
 		formatType = "rfc3339_utc"
-	case contains(timeStr, "T") && (contains(timeStr, "+") || contains(timeStr, "-")):
+	case strings.Contains(timeStr, "T") && (strings.Contains(timeStr, "+") || strings.Contains(timeStr, "-")):
 		formatType = "rfc3339_tz"
-	case contains(timeStr, " "):
+	case strings.Contains(timeStr, " "):
 		formatType = "sql_format"
 	default:
 		formatType = "iso8601"
 	}
 
 	// Determine precision
-	if contains(timeStr, ".") {
+	if strings.Contains(timeStr, ".") {
 		dotIndex := -1
 		for i, char := range timeStr {
 			if char == '.' {
@@ -555,16 +543,16 @@ func (h *LogHandler) convertTimeValidationError(err error, startTimeStr, endTime
 
 	// Handle different types of time validation errors
 	switch {
-	case contains(errMsg, "start_time") && contains(errMsg, "invalid"):
+	case strings.Contains(errMsg, "start_time") && strings.Contains(errMsg, "invalid"):
 		return NewTimeParameterError("start_time", startTimeStr, "invalid time format", http.StatusBadRequest)
 
-	case contains(errMsg, "end_time") && contains(errMsg, "invalid"):
+	case strings.Contains(errMsg, "end_time") && strings.Contains(errMsg, "invalid"):
 		return NewTimeParameterError("end_time", endTimeStr, "invalid time format", http.StatusBadRequest)
 
-	case contains(errMsg, "time format must be ISO 8601"):
+	case strings.Contains(errMsg, "time format must be ISO 8601"):
 		param := "start_time"
 		value := startTimeStr
-		if contains(errMsg, "end_time") {
+		if strings.Contains(errMsg, "end_time") {
 			param = "end_time"
 			value = endTimeStr
 		}
@@ -576,10 +564,10 @@ func (h *LogHandler) convertTimeValidationError(err error, startTimeStr, endTime
 		}
 		return NewTimeFormatError(param, value, supportedFormats, "2024-01-01T10:30:45.123Z")
 
-	case contains(errMsg, "time range error"):
+	case strings.Contains(errMsg, "time range error"):
 		return NewTimeRangeAPIError(nil, nil, errMsg, "Ensure start_time <= end_time and time span <= 24 hours")
 
-	case contains(errMsg, "cannot be in the future"):
+	case strings.Contains(errMsg, "cannot be in the future"):
 		return NewTimeParameterError("time_validation", "", "future times not allowed", http.StatusBadRequest)
 
 	default:
