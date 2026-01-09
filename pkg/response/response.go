@@ -1,16 +1,14 @@
 package response
 
 import (
-	"net/http"
-
 	"github.com/emicklei/go-restful/v3"
+	"github.com/outpostos/edge-logs/pkg/model/response"
 )
 
 // ErrorResponse represents an API error response
 type ErrorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
 	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 // SuccessResponse represents a successful API response
@@ -22,36 +20,17 @@ type SuccessResponse struct {
 // WriteError writes an error response
 func WriteError(resp *restful.Response, code int, message string) {
 	resp.WriteHeaderAndEntity(code, ErrorResponse{
-		Error:   http.StatusText(code),
 		Message: message,
 		Code:    code,
 	})
 }
 
-// LogQueryResponse represents a log query API response
-type LogQueryResponse struct {
-	Logs       []LogEntry `json:"logs"`
-	TotalCount int64      `json:"total_count"`
-	Page       int        `json:"page"`
-	PageSize   int        `json:"page_size"`
-	HasMore    bool       `json:"has_more"`
-}
+// LogQueryResponse is an alias for model.response.LogQueryResponse
+type LogQueryResponse = response.LogQueryResponse
 
-// LogEntry represents a single log entry
-type LogEntry struct {
-	Timestamp   string            `json:"timestamp"`
-	Level       string            `json:"level"`
-	Message     string            `json:"message"`
-	Namespace   string            `json:"namespace,omitempty"`
-	Pod         string            `json:"pod,omitempty"`
-	Container   string            `json:"container,omitempty"`
-	HostIP      string            `json:"host_ip,omitempty"`
-	Tags        map[string]string `json:"tags,omitempty"`
-}
-
-// WriteSuccess writes a success response
-func WriteSuccess(resp *restful.Response, data interface{}) {
-	resp.WriteHeaderAndEntity(http.StatusOK, SuccessResponse{
-		Data: data,
-	})
+// HealthResponse represents health check response
+type HealthResponse struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
+	Service string `json:"service"`
 }
