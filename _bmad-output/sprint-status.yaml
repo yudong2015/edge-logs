@@ -58,7 +58,7 @@ development_status:
   2-1-dataset-based-query-routing: done
   2-2-time-range-filtering-with-millisecond-precision: done
   2-3-namespace-and-pod-filtering: done
-  2-4-content-based-log-search: ready-for-dev
+  2-4-content-based-log-search: done
   epic-2-retrospective: optional
 
   # Epic 3: Advanced Query and Analytics

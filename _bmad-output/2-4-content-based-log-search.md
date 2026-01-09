@@ -1,6 +1,6 @@
 # Story 2.4: Content-based log search
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
