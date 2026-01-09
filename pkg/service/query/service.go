@@ -18,6 +18,7 @@ import (
 type Service struct {
 	repo              clickhouseRepo.Repository
 	datasetValidator *DatasetValidator
+	timeValidator    *TimeRangeValidator
 }
 
 // NewService creates a new query service with repository dependency
@@ -26,6 +27,7 @@ func NewService(repo clickhouseRepo.Repository) *Service {
 	return &Service{
 		repo:             repo,
 		datasetValidator: NewDatasetValidator(),
+		timeValidator:    NewTimeRangeValidator(),
 	}
 }
 
@@ -115,15 +117,9 @@ func (s *Service) validateQueryRequest(req *request.LogQueryRequest) error {
 		return fmt.Errorf("dataset access denied: %w", err)
 	}
 
-	// Time range validation
-	if req.StartTime != nil && req.EndTime != nil {
-		duration := req.EndTime.Sub(*req.StartTime)
-		if duration > 7*24*time.Hour {
-			return fmt.Errorf("time range too large: %v, maximum allowed: 168h", duration)
-		}
-		if duration < 0 {
-			return fmt.Errorf("start_time must be before end_time")
-		}
+	// Enhanced time range validation with millisecond precision
+	if err := s.validateTimeRange(req); err != nil {
+		return fmt.Errorf("time range validation failed: %w", err)
 	}
 
 	// Filter parameter sanitization
@@ -161,6 +157,48 @@ func (s *Service) validateDatasetAccess(dataset string) error {
 	// Additional service-level validations can be added here
 	// TODO: Implement actual dataset authorization once auth system is in place
 	// For now, dataset validator handles security validation
+
+	return nil
+}
+
+// validateTimeRange provides comprehensive time range validation with millisecond precision
+func (s *Service) validateTimeRange(req *request.LogQueryRequest) error {
+	// Convert time.Time to string for validation if needed
+	var startStr, endStr string
+	if req.StartTime != nil {
+		startStr = req.StartTime.Format(time.RFC3339Nano)
+	}
+	if req.EndTime != nil {
+		endStr = req.EndTime.Format(time.RFC3339Nano)
+	}
+
+	// Validate and normalize time range using enhanced validator
+	normalizedStart, normalizedEnd, err := s.timeValidator.ValidateAndParseTimeRange(startStr, endStr)
+	if err != nil {
+		return err
+	}
+
+	// Update request with normalized times (UTC and validated)
+	req.StartTime = normalizedStart
+	req.EndTime = normalizedEnd
+
+	// Additional business logic validation
+	if req.StartTime != nil && req.EndTime != nil {
+		timeSpan := req.EndTime.Sub(*req.StartTime)
+
+		// Log time range details for monitoring
+		klog.V(4).InfoS("Time range validation",
+			"start_time", req.StartTime.Format(time.RFC3339Nano),
+			"end_time", req.EndTime.Format(time.RFC3339Nano),
+			"time_span", timeSpan,
+			"span_hours", timeSpan.Hours())
+
+		// Check for very large time spans that could impact performance
+		if timeSpan > 7*24*time.Hour {
+			return NewTimeRangeError(req.StartTime, req.EndTime,
+				fmt.Sprintf("time range span (%v) exceeds maximum performance threshold (168h)", timeSpan))
+		}
+	}
 
 	return nil
 }

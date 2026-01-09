@@ -88,28 +88,28 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 		}
 	}()
 
-	// Build queries
-	qb := NewQueryBuilder()
+	// Use time-optimized query builder for enhanced millisecond precision support
+	tqb := NewTimeQueryBuilder()
 
-	// Validate query for performance
-	if err := qb.ValidateQuery(req); err != nil {
-		klog.ErrorS(err, "查询验证失败", "dataset", req.Dataset)
+	// Validate time query for performance and precision
+	if err := tqb.ValidateTimeQuery(req); err != nil {
+		klog.ErrorS(err, "时间查询验证失败", "dataset", req.Dataset)
 		return nil, 0, err
 	}
 
-	// Build main query
-	query, args, err := qb.BuildLogQuery(req)
+	// Build time-optimized main query
+	query, args, err := tqb.BuildOptimizedTimeRangeQuery(req)
 	if err != nil {
-		klog.ErrorS(err, "查询构建失败", "dataset", req.Dataset)
-		return nil, 0, NewQueryError("build_log_query", "", err).Err
+		klog.ErrorS(err, "时间优化查询构建失败", "dataset", req.Dataset)
+		return nil, 0, NewQueryError("build_time_query", "", err).Err
 	}
 
-	// Build count query for pagination
-	qbCount := NewQueryBuilder()
-	countQuery, countArgs, err := qbCount.BuildCountQuery(req)
+	// Build time-optimized count query for pagination
+	tqbCount := NewTimeQueryBuilder()
+	countQuery, countArgs, err := tqbCount.BuildTimeRangeCountQuery(req)
 	if err != nil {
-		klog.ErrorS(err, "计数查询构建失败", "dataset", req.Dataset)
-		return nil, 0, NewQueryError("build_count_query", "", err).Err
+		klog.ErrorS(err, "时间计数查询构建失败", "dataset", req.Dataset)
+		return nil, 0, NewQueryError("build_time_count_query", "", err).Err
 	}
 
 	// Execute count query first

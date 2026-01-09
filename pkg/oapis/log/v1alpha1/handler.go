@@ -20,6 +20,7 @@ import (
 type LogHandler struct {
 	queryService *query.Service
 	metrics      *DatasetMetrics
+	timeMetrics  *TimeMetrics
 }
 
 // NewLogHandler creates a new log handler with service dependency
@@ -28,6 +29,7 @@ func NewLogHandler(queryService *query.Service) *LogHandler {
 	return &LogHandler{
 		queryService: queryService,
 		metrics:      NewDatasetMetrics(),
+		timeMetrics:  NewTimeMetrics(),
 	}
 }
 
@@ -130,6 +132,12 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 	// Record successful metrics
 	h.metrics.RecordDatasetSuccess(dataset, len(result.Logs), duration)
 
+	// Record time-specific metrics
+	if queryReq.StartTime != nil && queryReq.EndTime != nil {
+		timeSpan := queryReq.EndTime.Sub(*queryReq.StartTime)
+		h.timeMetrics.RecordTimeQuery(dataset, duration, timeSpan, len(result.Logs))
+	}
+
 	// Log performance warnings
 	if duration > 2*time.Second {
 		klog.InfoS("查询响应时间超过目标",
@@ -162,22 +170,13 @@ func (h *LogHandler) parseQueryRequest(req *restful.Request, dataset string) (*r
 		Tags:    make(map[string]string),
 	}
 
-	// Parse time parameters (ISO 8601 format)
-	if startTimeStr := req.QueryParameter("start_time"); startTimeStr != "" {
-		startTime, err := time.Parse(time.RFC3339, startTimeStr)
-		if err != nil {
-			return nil, fmt.Errorf("start_time 格式错误: %w", err)
-		}
-		queryReq.StartTime = &startTime
+	// Parse time parameters with enhanced millisecond precision support
+	startTime, endTime, err := h.parseTimeParameters(req)
+	if err != nil {
+		return nil, err
 	}
-
-	if endTimeStr := req.QueryParameter("end_time"); endTimeStr != "" {
-		endTime, err := time.Parse(time.RFC3339, endTimeStr)
-		if err != nil {
-			return nil, fmt.Errorf("end_time 格式错误: %w", err)
-		}
-		queryReq.EndTime = &endTime
-	}
+	queryReq.StartTime = startTime
+	queryReq.EndTime = endTime
 
 	// Parse filter parameters
 	queryReq.Filter = req.QueryParameter("filter")
@@ -331,12 +330,142 @@ func (h *LogHandler) handleServiceError(resp *restful.Response, err error, datas
 	h.writeErrorResponse(resp, statusCode, message)
 }
 
+// parseTimeParameters parses time parameters with comprehensive format support and millisecond precision
+func (h *LogHandler) parseTimeParameters(req *restful.Request) (*time.Time, *time.Time, error) {
+	parseStartTime := time.Now()
+
+	// Use time validator from service layer
+	timeValidator := query.NewTimeRangeValidator()
+
+	// Extract time parameter strings
+	startTimeStr := req.QueryParameter("start_time")
+	endTimeStr := req.QueryParameter("end_time")
+
+	// Determine format type and precision for metrics
+	formatType, precision := h.analyzeTimeFormat(startTimeStr, endTimeStr)
+
+	// Validate and parse time range using enhanced validator
+	startTime, endTime, err := timeValidator.ValidateAndParseTimeRange(startTimeStr, endTimeStr)
+
+	parseDuration := time.Since(parseStartTime)
+	h.timeMetrics.RecordTimeParsing(parseDuration, formatType, precision)
+
+	if err != nil {
+		// Convert service layer errors to API errors
+		return nil, nil, h.convertTimeValidationError(err, startTimeStr, endTimeStr)
+	}
+
+	return startTime, endTime, nil
+}
+
+// analyzeTimeFormat analyzes time parameter formats for metrics
+func (h *LogHandler) analyzeTimeFormat(startTimeStr, endTimeStr string) (string, string) {
+	formatType := "none"
+	precision := "second"
+
+	// Analyze the first non-empty time string
+	timeStr := startTimeStr
+	if timeStr == "" {
+		timeStr = endTimeStr
+	}
+
+	if timeStr == "" {
+		return formatType, precision
+	}
+
+	// Determine format type
+	switch {
+	case contains(timeStr, "T") && contains(timeStr, "Z"):
+		formatType = "rfc3339_utc"
+	case contains(timeStr, "T") && (contains(timeStr, "+") || contains(timeStr, "-")):
+		formatType = "rfc3339_tz"
+	case contains(timeStr, " "):
+		formatType = "sql_format"
+	default:
+		formatType = "iso8601"
+	}
+
+	// Determine precision
+	if contains(timeStr, ".") {
+		dotIndex := -1
+		for i, char := range timeStr {
+			if char == '.' {
+				dotIndex = i
+				break
+			}
+		}
+		if dotIndex != -1 {
+			// Count digits after decimal point before Z or timezone
+			fractionalPart := timeStr[dotIndex+1:]
+			digitCount := 0
+			for _, char := range fractionalPart {
+				if char >= '0' && char <= '9' {
+					digitCount++
+				} else {
+					break
+				}
+			}
+
+			switch digitCount {
+			case 1, 2, 3:
+				precision = "millisecond"
+			case 4, 5, 6:
+				precision = "microsecond"
+			case 7, 8, 9:
+				precision = "nanosecond"
+			default:
+				precision = "fractional"
+			}
+		}
+	}
+
+	return formatType, precision
+}
+
+// convertTimeValidationError converts service layer time errors to API-appropriate errors
+func (h *LogHandler) convertTimeValidationError(err error, startTimeStr, endTimeStr string) error {
+	errMsg := err.Error()
+
+	// Handle different types of time validation errors
+	switch {
+	case contains(errMsg, "start_time") && contains(errMsg, "invalid"):
+		return NewTimeParameterError("start_time", startTimeStr, "invalid time format", http.StatusBadRequest)
+
+	case contains(errMsg, "end_time") && contains(errMsg, "invalid"):
+		return NewTimeParameterError("end_time", endTimeStr, "invalid time format", http.StatusBadRequest)
+
+	case contains(errMsg, "time format must be ISO 8601"):
+		param := "start_time"
+		value := startTimeStr
+		if contains(errMsg, "end_time") {
+			param = "end_time"
+			value = endTimeStr
+		}
+		supportedFormats := []string{
+			"RFC3339: 2006-01-02T15:04:05Z",
+			"With milliseconds: 2006-01-02T15:04:05.123Z",
+			"With microseconds: 2006-01-02T15:04:05.123456Z",
+			"With nanoseconds: 2006-01-02T15:04:05.123456789Z",
+		}
+		return NewTimeFormatError(param, value, supportedFormats, "2024-01-01T10:30:45.123Z")
+
+	case contains(errMsg, "time range error"):
+		return NewTimeRangeAPIError(nil, nil, errMsg, "Ensure start_time <= end_time and time span <= 24 hours")
+
+	case contains(errMsg, "cannot be in the future"):
+		return NewTimeParameterError("time_validation", "", "future times not allowed", http.StatusBadRequest)
+
+	default:
+		return NewTimeParameterError("time_parsing", "", fmt.Sprintf("时间参数解析失败: %v", err), http.StatusBadRequest)
+	}
+}
+
 // enrichResponseWithDataset enriches response with dataset metadata and query summary
 func (h *LogHandler) enrichResponseWithDataset(result *response.LogQueryResponse, dataset string, queryReq *request.LogQueryRequest) {
 	// Set dataset in response
 	result.Dataset = dataset
 
-	// Build query summary
+	// Build query summary with enhanced time precision
 	result.Query = &response.QuerySummary{
 		StartTime: queryReq.StartTime,
 		EndTime:   queryReq.EndTime,
@@ -359,8 +488,16 @@ func (h *LogHandler) enrichResponseWithDataset(result *response.LogQueryResponse
 		result.Query.Filters["severity"] = queryReq.Severity
 	}
 
+	// Add time range metadata for debugging
+	if queryReq.StartTime != nil && queryReq.EndTime != nil {
+		timeSpan := queryReq.EndTime.Sub(*queryReq.StartTime)
+		result.Query.Filters["time_span_seconds"] = fmt.Sprintf("%.3f", timeSpan.Seconds())
+		result.Query.Filters["time_precision"] = "nanosecond"
+	}
+
 	klog.V(4).InfoS("响应增强完成",
 		"dataset", dataset,
 		"has_metadata", result.Metadata != nil,
-		"filter_count", len(result.Query.Filters))
+		"filter_count", len(result.Query.Filters),
+		"time_precision_enabled", queryReq.StartTime != nil || queryReq.EndTime != nil)
 }

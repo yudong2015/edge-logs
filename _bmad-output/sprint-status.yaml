@@ -55,8 +55,8 @@ development_status:
 
   # Epic 2: Dataset Management and Data Isolation
   epic-2: in-progress
-  2-1-dataset-based-query-routing: ready-for-dev
-  2-2-time-range-filtering-with-millisecond-precision: backlog
+  2-1-dataset-based-query-routing: done
+  2-2-time-range-filtering-with-millisecond-precision: ready-for-dev
   2-3-namespace-and-pod-filtering: backlog
   2-4-content-based-log-search: backlog
   epic-2-retrospective: optional
