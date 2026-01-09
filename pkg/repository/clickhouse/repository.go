@@ -88,28 +88,57 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 		}
 	}()
 
-	// Use time-optimized query builder for enhanced millisecond precision support
-	tqb := NewTimeQueryBuilder()
+	// Use K8s-optimized query builder for enhanced metadata filtering support
+	var query, countQuery string
+	var args, countArgs []interface{}
+	var err error
 
-	// Validate time query for performance and precision
-	if err := tqb.ValidateTimeQuery(req); err != nil {
-		klog.ErrorS(err, "时间查询验证失败", "dataset", req.Dataset)
-		return nil, 0, err
-	}
+	if len(req.K8sFilters) > 0 {
+		// Use K8s-optimized query builder when K8s filters are present
+		kqb := NewK8sQueryBuilder()
 
-	// Build time-optimized main query
-	query, args, err := tqb.BuildOptimizedTimeRangeQuery(req)
-	if err != nil {
-		klog.ErrorS(err, "时间优化查询构建失败", "dataset", req.Dataset)
-		return nil, 0, NewQueryError("build_time_query", "", err).Err
-	}
+		// Validate K8s query for performance and complexity
+		if err := kqb.ValidateK8sQuery(req); err != nil {
+			klog.ErrorS(err, "K8s查询验证失败", "dataset", req.Dataset)
+			return nil, 0, err
+		}
 
-	// Build time-optimized count query for pagination
-	tqbCount := NewTimeQueryBuilder()
-	countQuery, countArgs, err := tqbCount.BuildTimeRangeCountQuery(req)
-	if err != nil {
-		klog.ErrorS(err, "时间计数查询构建失败", "dataset", req.Dataset)
-		return nil, 0, NewQueryError("build_time_count_query", "", err).Err
+		// Build K8s-optimized main query
+		query, args, err = kqb.BuildK8sOptimizedQuery(req)
+		if err != nil {
+			klog.ErrorS(err, "K8s优化查询构建失败", "dataset", req.Dataset)
+			return nil, 0, NewQueryError("build_k8s_query", "", err).Err
+		}
+
+		// Build K8s-optimized count query for pagination
+		countQuery, countArgs, err = kqb.BuildK8sCountQuery(req)
+		if err != nil {
+			klog.ErrorS(err, "K8s计数查询构建失败", "dataset", req.Dataset)
+			return nil, 0, NewQueryError("build_k8s_count_query", "", err).Err
+		}
+	} else {
+		// Use time-optimized query builder for time-only queries
+		tqb := NewTimeQueryBuilder()
+
+		// Validate time query for performance and precision
+		if err := tqb.ValidateTimeQuery(req); err != nil {
+			klog.ErrorS(err, "时间查询验证失败", "dataset", req.Dataset)
+			return nil, 0, err
+		}
+
+		// Build time-optimized main query
+		query, args, err = tqb.BuildOptimizedTimeRangeQuery(req)
+		if err != nil {
+			klog.ErrorS(err, "时间优化查询构建失败", "dataset", req.Dataset)
+			return nil, 0, NewQueryError("build_time_query", "", err).Err
+		}
+
+		// Build time-optimized count query for pagination
+		countQuery, countArgs, err = tqb.BuildTimeRangeCountQuery(req)
+		if err != nil {
+			klog.ErrorS(err, "时间计数查询构建失败", "dataset", req.Dataset)
+			return nil, 0, NewQueryError("build_time_count_query", "", err).Err
+		}
 	}
 
 	// Execute count query first

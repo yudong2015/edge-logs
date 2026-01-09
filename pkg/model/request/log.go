@@ -5,6 +5,26 @@ import (
 	"time"
 )
 
+// K8sFilterType defines different matching patterns for K8s filtering
+type K8sFilterType string
+
+const (
+	K8sFilterExact     K8sFilterType = "exact"
+	K8sFilterPrefix    K8sFilterType = "prefix"
+	K8sFilterSuffix    K8sFilterType = "suffix"
+	K8sFilterContains  K8sFilterType = "contains"
+	K8sFilterRegex     K8sFilterType = "regex"
+	K8sFilterWildcard  K8sFilterType = "wildcard"
+)
+
+// K8sFilter represents a single K8s filtering condition
+type K8sFilter struct {
+	Type            K8sFilterType `json:"type"`
+	Pattern         string        `json:"pattern"`
+	Field           string        `json:"field"` // "namespace" or "pod"
+	CaseInsensitive bool          `json:"case_insensitive,omitempty"`
+}
+
 // LogQueryRequest represents a log query request
 type LogQueryRequest struct {
 	// Data isolation
@@ -18,10 +38,12 @@ type LogQueryRequest struct {
 	Filter   string `json:"filter,omitempty"`   // Full-text search
 	Severity string `json:"severity,omitempty"` // Log severity level
 
-	// K8s metadata filtering
-	Namespace string `json:"namespace,omitempty"`
-	PodName   string `json:"pod_name,omitempty"`
-	NodeName  string `json:"node_name,omitempty"`
+	// K8s metadata filtering - enhanced with multiple pattern support
+	Namespace  string   `json:"namespace,omitempty"`   // Legacy single namespace for backward compatibility
+	Namespaces []string `json:"namespaces,omitempty"` // Multiple namespaces support
+	PodName    string   `json:"pod_name,omitempty"`   // Legacy single pod name for backward compatibility
+	PodNames   []string `json:"pod_names,omitempty"`  // Multiple pod names with pattern matching
+	NodeName   string   `json:"node_name,omitempty"`
 
 	// Host filtering
 	HostIP   string `json:"host_ip,omitempty"`
@@ -40,6 +62,9 @@ type LogQueryRequest struct {
 	// Result ordering
 	OrderBy   string `json:"order_by,omitempty"` // timestamp, severity
 	Direction string `json:"direction,omitempty"` // asc, desc
+
+	// Internal fields for parsed filters (not exposed in JSON)
+	K8sFilters []K8sFilter `json:"-"` // Parsed K8s filter conditions
 }
 
 // Validate validates the log query request

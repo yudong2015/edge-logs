@@ -21,6 +21,7 @@ type LogHandler struct {
 	queryService *query.Service
 	metrics      *DatasetMetrics
 	timeMetrics  *TimeMetrics
+	k8sMetrics   *K8sMetrics
 }
 
 // NewLogHandler creates a new log handler with service dependency
@@ -30,6 +31,7 @@ func NewLogHandler(queryService *query.Service) *LogHandler {
 		queryService: queryService,
 		metrics:      NewDatasetMetrics(),
 		timeMetrics:  NewTimeMetrics(),
+		k8sMetrics:   NewK8sMetrics(),
 	}
 }
 
@@ -52,8 +54,11 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Param(ws.PathParameter("dataset", "数据集名称").DataType("string").Required(true)).
 		Param(ws.QueryParameter("start_time", "开始时间 (ISO 8601格式)").DataType("string")).
 		Param(ws.QueryParameter("end_time", "结束时间 (ISO 8601格式)").DataType("string")).
-		Param(ws.QueryParameter("namespace", "Kubernetes 命名空间").DataType("string")).
-		Param(ws.QueryParameter("pod_name", "Pod 名称").DataType("string")).
+		Param(ws.QueryParameter("namespace", "单个Kubernetes命名空间").DataType("string")).
+		Param(ws.QueryParameter("namespaces", "多个Kubernetes命名空间 (逗号分隔或数组)").DataType("string")).
+		Param(ws.QueryParameter("pod_name", "单个Pod名称").DataType("string")).
+		Param(ws.QueryParameter("pod_names", "多个Pod名称 (支持模式匹配: exact, prefix*, *suffix, *contains*, regex:pattern, icase:pattern)").DataType("string")).
+		Param(ws.QueryParameter("pods", "Pod名称数组 (同pod_names)").DataType("string")).
 		Param(ws.QueryParameter("node_name", "节点名称").DataType("string")).
 		Param(ws.QueryParameter("container_name", "容器名称").DataType("string")).
 		Param(ws.QueryParameter("filter", "日志内容过滤").DataType("string")).
@@ -138,6 +143,11 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 		h.timeMetrics.RecordTimeQuery(dataset, duration, timeSpan, len(result.Logs))
 	}
 
+	// Record K8s-specific metrics
+	if len(queryReq.K8sFilters) > 0 {
+		h.k8sMetrics.RecordK8sQuery(dataset, duration, queryReq.K8sFilters, len(result.Logs))
+	}
+
 	// Log performance warnings
 	if duration > 2*time.Second {
 		klog.InfoS("查询响应时间超过目标",
@@ -181,10 +191,22 @@ func (h *LogHandler) parseQueryRequest(req *restful.Request, dataset string) (*r
 	// Parse filter parameters
 	queryReq.Filter = req.QueryParameter("filter")
 	queryReq.Severity = req.QueryParameter("severity")
-	queryReq.Namespace = req.QueryParameter("namespace")
-	queryReq.PodName = req.QueryParameter("pod_name")
 	queryReq.NodeName = req.QueryParameter("node_name")
 	queryReq.ContainerName = req.QueryParameter("container_name")
+
+	// Parse K8s parameters with enhanced pattern support
+	namespaces, pods, err := h.parseK8sParameters(req)
+	if err != nil {
+		return nil, fmt.Errorf("K8s参数解析失败: %w", err)
+	}
+
+	// Set legacy single parameters for backward compatibility
+	queryReq.Namespace = req.QueryParameter("namespace")
+	queryReq.PodName = req.QueryParameter("pod_name")
+
+	// Set enhanced multi-value parameters
+	queryReq.Namespaces = namespaces
+	queryReq.PodNames = pods
 
 	// Parse pagination parameters
 	if pageStr := req.QueryParameter("page"); pageStr != "" {
@@ -324,10 +346,88 @@ func (h *LogHandler) handleDatasetError(resp *restful.Response, err error, datas
 
 // handleServiceError handles service layer errors
 func (h *LogHandler) handleServiceError(resp *restful.Response, err error, dataset string) {
+	errMsg := err.Error()
+
+	// Check for K8s-specific errors
+	if isK8sError(errMsg) {
+		h.handleK8sServiceError(resp, err, dataset)
+		return
+	}
+
+	// Handle general service errors
 	statusCode := h.mapErrorToStatusCode(err)
 	message := fmt.Sprintf("查询失败: %v", err)
 
 	h.writeErrorResponse(resp, statusCode, message)
+}
+
+// isK8sError checks if an error is K8s-related
+func isK8sError(errMsg string) bool {
+	k8sErrorPatterns := []string{
+		"K8s filter validation failed",
+		"invalid namespace filter",
+		"invalid pod filter",
+		"K8s filter parsing failed",
+		"too many K8s filters",
+		"K8s filter complexity too high",
+		"DNS-1123 compliant",
+		"regex pattern may be too expensive",
+	}
+
+	for _, pattern := range k8sErrorPatterns {
+		if strings.Contains(errMsg, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleK8sServiceError handles K8s-specific service errors
+func (h *LogHandler) handleK8sServiceError(resp *restful.Response, err error, dataset string) {
+	statusCode, errorResponse := h.HandleK8sError(err, dataset)
+
+	// Record K8s error metrics
+	errorType := h.categorizeK8sError(err)
+	errorReason := h.extractK8sErrorReason(err)
+	h.k8sMetrics.RecordK8sError(dataset, errorType, errorReason)
+
+	resp.WriteHeaderAndEntity(statusCode, errorResponse)
+}
+
+// categorizeK8sError categorizes K8s errors for metrics
+func (h *LogHandler) categorizeK8sError(err error) string {
+	errMsg := err.Error()
+	switch {
+	case strings.Contains(errMsg, "validation failed"):
+		return "validation_error"
+	case strings.Contains(errMsg, "complexity too high"):
+		return "complexity_error"
+	case strings.Contains(errMsg, "DNS-1123"):
+		return "format_error"
+	case strings.Contains(errMsg, "regex pattern"):
+		return "pattern_error"
+	case strings.Contains(errMsg, "too many"):
+		return "limit_exceeded"
+	default:
+		return "unknown_error"
+	}
+}
+
+// extractK8sErrorReason extracts specific error reason for metrics
+func (h *LogHandler) extractK8sErrorReason(err error) string {
+	errMsg := err.Error()
+	switch {
+	case strings.Contains(errMsg, "namespace"):
+		return "namespace_issue"
+	case strings.Contains(errMsg, "pod"):
+		return "pod_issue"
+	case strings.Contains(errMsg, "regex"):
+		return "regex_issue"
+	case strings.Contains(errMsg, "wildcard"):
+		return "wildcard_issue"
+	default:
+		return "general_issue"
+	}
 }
 
 // parseTimeParameters parses time parameters with comprehensive format support and millisecond precision
@@ -460,6 +560,64 @@ func (h *LogHandler) convertTimeValidationError(err error, startTimeStr, endTime
 	}
 }
 
+// parseK8sParameters parses K8s filtering parameters with enhanced pattern support
+func (h *LogHandler) parseK8sParameters(req *restful.Request) ([]string, []string, error) {
+	var namespaces, pods []string
+
+	// Parse single namespace parameter (backward compatibility)
+	if ns := req.QueryParameter("namespace"); ns != "" {
+		if strings.Contains(ns, ",") {
+			namespaces = strings.Split(ns, ",")
+		} else {
+			namespaces = []string{ns}
+		}
+	}
+
+	// Parse multiple namespaces parameter
+	if nsArray := req.QueryParameter("namespaces"); nsArray != "" {
+		additionalNs := strings.Split(nsArray, ",")
+		namespaces = append(namespaces, additionalNs...)
+	}
+
+	// Parse single pod parameter (backward compatibility)
+	if pod := req.QueryParameter("pod_name"); pod != "" {
+		if strings.Contains(pod, ",") {
+			pods = strings.Split(pod, ",")
+		} else {
+			pods = []string{pod}
+		}
+	}
+
+	// Parse multiple pods parameter
+	if podArray := req.QueryParameter("pods"); podArray != "" {
+		additionalPods := strings.Split(podArray, ",")
+		pods = append(pods, additionalPods...)
+	}
+
+	// Parse pod names parameter (alternative naming)
+	if podNames := req.QueryParameter("pod_names"); podNames != "" {
+		morePods := strings.Split(podNames, ",")
+		pods = append(pods, morePods...)
+	}
+
+	// Clean up inputs
+	namespaces = h.cleanStringArray(namespaces)
+	pods = h.cleanStringArray(pods)
+
+	return namespaces, pods, nil
+}
+
+// cleanStringArray removes empty entries and trims whitespace
+func (h *LogHandler) cleanStringArray(input []string) []string {
+	var result []string
+	for _, item := range input {
+		if cleaned := strings.TrimSpace(item); cleaned != "" {
+			result = append(result, cleaned)
+		}
+	}
+	return result
+}
+
 // enrichResponseWithDataset enriches response with dataset metadata and query summary
 func (h *LogHandler) enrichResponseWithDataset(result *response.LogQueryResponse, dataset string, queryReq *request.LogQueryRequest) {
 	// Set dataset in response
@@ -478,6 +636,12 @@ func (h *LogHandler) enrichResponseWithDataset(result *response.LogQueryResponse
 	if queryReq.PodName != "" {
 		result.Query.Filters["pod_name"] = queryReq.PodName
 	}
+	if len(queryReq.PodNames) > 0 {
+		result.Query.Filters["pod_names"] = fmt.Sprintf("[%s]", strings.Join(queryReq.PodNames, ", "))
+	}
+	if len(queryReq.Namespaces) > 0 {
+		result.Query.Filters["namespaces"] = fmt.Sprintf("[%s]", strings.Join(queryReq.Namespaces, ", "))
+	}
 	if queryReq.NodeName != "" {
 		result.Query.Filters["node_name"] = queryReq.NodeName
 	}
@@ -486,6 +650,28 @@ func (h *LogHandler) enrichResponseWithDataset(result *response.LogQueryResponse
 	}
 	if queryReq.Severity != "" {
 		result.Query.Filters["severity"] = queryReq.Severity
+	}
+
+	// Add K8s filter metadata
+	if len(queryReq.K8sFilters) > 0 {
+		result.Query.Filters["k8s_filters_count"] = fmt.Sprintf("%d", len(queryReq.K8sFilters))
+
+		namespaceFilterCount := 0
+		podFilterCount := 0
+		for _, filter := range queryReq.K8sFilters {
+			if filter.Field == "namespace" {
+				namespaceFilterCount++
+			} else if filter.Field == "pod" {
+				podFilterCount++
+			}
+		}
+
+		if namespaceFilterCount > 0 {
+			result.Query.Filters["namespace_filters"] = fmt.Sprintf("%d", namespaceFilterCount)
+		}
+		if podFilterCount > 0 {
+			result.Query.Filters["pod_filters"] = fmt.Sprintf("%d", podFilterCount)
+		}
 	}
 
 	// Add time range metadata for debugging

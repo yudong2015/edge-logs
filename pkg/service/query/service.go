@@ -19,6 +19,7 @@ type Service struct {
 	repo              clickhouseRepo.Repository
 	datasetValidator *DatasetValidator
 	timeValidator    *TimeRangeValidator
+	k8sValidator     *K8sResourceValidator
 }
 
 // NewService creates a new query service with repository dependency
@@ -28,6 +29,7 @@ func NewService(repo clickhouseRepo.Repository) *Service {
 		repo:             repo,
 		datasetValidator: NewDatasetValidator(),
 		timeValidator:    NewTimeRangeValidator(),
+		k8sValidator:     NewK8sResourceValidator(),
 	}
 }
 
@@ -120,6 +122,11 @@ func (s *Service) validateQueryRequest(req *request.LogQueryRequest) error {
 	// Enhanced time range validation with millisecond precision
 	if err := s.validateTimeRange(req); err != nil {
 		return fmt.Errorf("time range validation failed: %w", err)
+	}
+
+	// K8s metadata filtering validation
+	if err := s.validateK8sFilters(req); err != nil {
+		return fmt.Errorf("K8s filter validation failed: %w", err)
 	}
 
 	// Filter parameter sanitization
@@ -409,6 +416,95 @@ func (s *Service) enrichResponseWithDataset(ctx context.Context, response *respo
 	}
 
 	return nil
+}
+
+// validateK8sFilters validates and processes K8s filtering parameters
+func (s *Service) validateK8sFilters(req *request.LogQueryRequest) error {
+	// Parse and validate K8s filters
+	namespaces := s.parseNamespaceInput(req.Namespace, req.Namespaces)
+	pods := s.parsePodInput(req.PodName, req.PodNames)
+
+	// Validate and parse K8s filters
+	k8sFilters, err := s.k8sValidator.ParseK8sFilters(namespaces, pods)
+	if err != nil {
+		return fmt.Errorf("K8s filter parsing failed: %w", err)
+	}
+
+	// Store parsed filters in request for query building
+	req.K8sFilters = k8sFilters
+
+	// Log K8s filter details for monitoring
+	if len(k8sFilters) > 0 {
+		klog.V(4).InfoS("K8s filters parsed",
+			"dataset", req.Dataset,
+			"filter_count", len(k8sFilters),
+			"namespaces", namespaces,
+			"pods", pods)
+	}
+
+	return nil
+}
+
+// parseNamespaceInput handles various namespace input formats
+func (s *Service) parseNamespaceInput(namespace string, namespaces []string) []string {
+	var result []string
+
+	// Handle single namespace parameter
+	if namespace != "" {
+		if strings.Contains(namespace, ",") {
+			// Comma-separated namespaces
+			result = append(result, strings.Split(namespace, ",")...)
+		} else {
+			result = append(result, namespace)
+		}
+	}
+
+	// Handle array-style namespaces parameter
+	result = append(result, namespaces...)
+
+	// Remove empty entries and duplicates
+	seen := make(map[string]bool)
+	var cleaned []string
+	for _, ns := range result {
+		ns = strings.TrimSpace(ns)
+		if ns != "" && !seen[ns] {
+			cleaned = append(cleaned, ns)
+			seen[ns] = true
+		}
+	}
+
+	return cleaned
+}
+
+// parsePodInput handles various pod input formats
+func (s *Service) parsePodInput(podName string, podNames []string) []string {
+	var result []string
+
+	// Handle single pod parameter
+	if podName != "" {
+		if strings.Contains(podName, ",") {
+			// Comma-separated pod names
+			result = append(result, strings.Split(podName, ",")...)
+		} else {
+			result = append(result, podName)
+		}
+	}
+
+	// Handle array-style pod names parameter
+	result = append(result, podNames...)
+
+	// Remove empty entries and duplicates
+	seen := make(map[string]bool)
+	var cleaned []string
+	for _, pod := range result {
+		pod = strings.TrimSpace(pod)
+		if pod != "" && !seen[pod] {
+			cleaned = append(cleaned, pod)
+			seen[pod] = true
+		}
+	}
+
+	return cleaned
 }
 
 // DatasetExists checks if a dataset exists and contains data
