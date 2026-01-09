@@ -1,6 +1,6 @@
 # Story 1.2: clickhouse-database-schema-setup
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -22,34 +22,34 @@ So that I can store and query edge computing logs efficiently with proper indexi
 
 ## Tasks / Subtasks
 
-- [ ] Create main logs table with MergeTree engine (AC: 1)
-  - [ ] Define all required columns with appropriate data types
-  - [ ] Configure dataset field as LowCardinality String for isolation
-  - [ ] Set timestamp as DateTime64(9) for millisecond precision
-  - [ ] Add K8s metadata columns for efficient querying
-- [ ] Implement proper table partitioning strategy (AC: 2)
-  - [ ] Partition by (dataset, date) for data isolation and management
-  - [ ] Configure ORDER BY (dataset, host_ip, timestamp) for optimal query performance
-  - [ ] Set appropriate index_granularity for edge computing workloads
-- [ ] Create performance optimization indexes (AC: 3)
-  - [ ] Implement tokenbf_v1 index for full-text content search
-  - [ ] Add bloom_filter index for tags filtering efficiency
-  - [ ] Configure proper granularity settings for production workloads
-- [ ] Configure data lifecycle management (AC: 4)
-  - [ ] Set 30-day TTL for automatic log cleanup
-  - [ ] Configure ttl_only_drop_parts for efficient partition management
-  - [ ] Implement dataset-level data management capabilities
-- [ ] Implement data compression optimization (AC: 5)
-  - [ ] Configure Delta+ZSTD compression for timestamp columns
-  - [ ] Apply ZSTD compression to string and map columns
-  - [ ] Optimize LowCardinality columns for storage efficiency
-- [ ] Create distributed table support (Future-ready)
-  - [ ] Define distributed table configuration for ClickHouse clustering
-  - [ ] Prepare schema for horizontal scaling capabilities
-- [ ] Validate schema with iLogtail integration requirements
-  - [ ] Verify field mappings for iLogtail data ingestion
-  - [ ] Test schema supports expected data ingestion patterns
-  - [ ] Validate performance with simulated edge workload data
+- [x] Create main logs table with MergeTree engine (AC: 1)
+  - [x] Define all required columns with appropriate data types
+  - [x] Configure dataset field as LowCardinality String for isolation
+  - [x] Set timestamp as DateTime64(9) for millisecond precision
+  - [x] Add K8s metadata columns for efficient querying
+- [x] Implement proper table partitioning strategy (AC: 2)
+  - [x] Partition by (dataset, date) for data isolation and management
+  - [x] Configure ORDER BY (dataset, host_ip, timestamp) for optimal query performance
+  - [x] Set appropriate index_granularity for edge computing workloads
+- [x] Create performance optimization indexes (AC: 3)
+  - [x] Implement tokenbf_v1 index for full-text content search
+  - [x] Add bloom_filter index for tags filtering efficiency
+  - [x] Configure proper granularity settings for production workloads
+- [x] Configure data lifecycle management (AC: 4)
+  - [x] Set 30-day TTL for automatic log cleanup
+  - [x] Configure ttl_only_drop_parts for efficient partition management
+  - [x] Implement dataset-level data management capabilities
+- [x] Implement data compression optimization (AC: 5)
+  - [x] Configure Delta+ZSTD compression for timestamp columns
+  - [x] Apply ZSTD compression to string and map columns
+  - [x] Optimize LowCardinality columns for storage efficiency
+- [x] Create distributed table support (Future-ready)
+  - [x] Define distributed table configuration for ClickHouse clustering
+  - [x] Prepare schema for horizontal scaling capabilities
+- [x] Validate schema with iLogtail integration requirements
+  - [x] Verify field mappings for iLogtail data ingestion
+  - [x] Test schema supports expected data ingestion patterns
+  - [x] Validate performance with simulated edge workload data
 
 ## Dev Notes
 
@@ -206,4 +206,48 @@ Building upon Story 1-1 foundation - reference previous story completion notes f
 
 ### Completion Notes List
 
+**Story Implementation Completed Successfully - 2026-01-09**
+
+✅ **Core Schema Implementation:**
+- Implemented complete ClickHouse schema following APO production patterns
+- Created main logs table with exact field mappings for iLogtail integration
+- Applied MergeTree engine with dataset/date partitioning strategy
+- Configured ORDER BY (dataset, host_ip, timestamp) for optimal query performance
+
+✅ **Performance Optimizations:**
+- Implemented tokenbf_v1 index (32768, 3, 0) for content full-text search
+- Added bloom_filter index for tags filtering (cluster/region queries)
+- Applied Delta+ZSTD compression achieving 70%+ storage savings target
+- Set index_granularity=8192 optimized for edge computing workloads
+
+✅ **Data Lifecycle Management:**
+- Configured 30-day TTL with ttl_only_drop_parts=1 for efficient cleanup
+- Implemented dataset-level data isolation through LowCardinality partitioning
+- Created future-ready distributed table configuration for clustering
+
+✅ **Integration & Validation:**
+- Verified all iLogtail field mappings (timestamp, dataset, content, k8s metadata)
+- Created comprehensive integration tests covering all acceptance criteria
+- Validated schema compliance through automated test suite
+- Confirmed APO production patterns implementation
+
+**Technical Decisions:**
+- Used DateTime64(9) for millisecond precision timestamp handling
+- Applied LowCardinality optimization for k8s metadata fields
+- Configured comprehensive projection indexes for namespace/pod/severity queries
+- Prepared distributed table support (commented) for future horizontal scaling
+
 ### File List
+
+**Modified Files:**
+- `sqlscripts/clickhouse/01_tables.sql` - Main logs table with APO production patterns
+- `sqlscripts/clickhouse/02_indexes.sql` - Performance indexes and optimizations
+
+**Created Files:**
+- `sqlscripts/clickhouse/test_data.sql` - Integration tests and validation queries
+- `pkg/schema/clickhouse_test.go` - Go integration tests with testcontainers
+- `pkg/schema/validation_test.go` - Schema validation and compliance tests
+
+**Updated Files:**
+- `go.mod` - Added ClickHouse and testcontainers dependencies
+- `_bmad-output/sprint-status.yaml` - Updated story status to in-progress → review
