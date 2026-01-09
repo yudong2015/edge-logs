@@ -26,12 +26,29 @@ type ServerConfig struct {
 
 // ClickHouseConfig contains ClickHouse database configuration
 type ClickHouseConfig struct {
+	// Connection settings
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
 	Database string `yaml:"database"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	TLS      bool   `yaml:"tls"`
+
+	// Connection pool settings (edge optimized)
+	MaxOpenConns    int           `yaml:"max_open_conns"`
+	MaxIdleConns    int           `yaml:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `yaml:"conn_max_idle_time"`
+
+	// Query settings
+	QueryTimeout time.Duration `yaml:"query_timeout"`
+	ExecTimeout  time.Duration `yaml:"exec_timeout"`
+
+	// Performance settings
+	BlockSize     uint64 `yaml:"block_size"`      // Block size for batch operations
+	Compression   bool   `yaml:"compression"`     // Enable compression
+	MaxBlockSize  uint64 `yaml:"max_block_size"`  // Max block size
+	Async         bool   `yaml:"async"`           // Enable async operations
 }
 
 // KubernetesConfig contains Kubernetes client configuration
@@ -63,6 +80,19 @@ func Load() (*Config, error) {
 			Username: "default",
 			Password: "",
 			TLS:      false,
+			// Connection pool defaults (edge optimized)
+			MaxOpenConns:    20,
+			MaxIdleConns:    10,
+			ConnMaxLifetime: 30 * time.Minute,
+			ConnMaxIdleTime: 5 * time.Minute,
+			// Query timeouts
+			QueryTimeout: 30 * time.Second,
+			ExecTimeout:  10 * time.Second,
+			// Performance settings
+			BlockSize:    1048576, // 1MB
+			Compression:  true,
+			MaxBlockSize: 1048576, // 1MB
+			Async:        false,
 		},
 		Kubernetes: KubernetesConfig{
 			InCluster:  false,
