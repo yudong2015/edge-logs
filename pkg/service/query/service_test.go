@@ -11,6 +11,7 @@ import (
 
 	"github.com/outpostos/edge-logs/pkg/model/clickhouse"
 	"github.com/outpostos/edge-logs/pkg/model/request"
+	clickhouseRepo "github.com/outpostos/edge-logs/pkg/repository/clickhouse"
 )
 
 // MockRepository is a mock implementation of clickhouse.Repository interface
@@ -44,6 +45,33 @@ func (m *MockRepository) HealthCheck(ctx context.Context) error {
 func (m *MockRepository) Close() error {
 	args := m.Called()
 	return args.Error(0)
+}
+
+// Dataset-specific methods for enhanced data isolation
+func (m *MockRepository) DatasetExists(ctx context.Context, dataset string) (bool, error) {
+	args := m.Called(ctx, dataset)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockRepository) GetDatasetStats(ctx context.Context, dataset string) (*clickhouseRepo.DatasetMetadata, error) {
+	args := m.Called(ctx, dataset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*clickhouseRepo.DatasetMetadata), args.Error(1)
+}
+
+func (m *MockRepository) ListAvailableDatasets(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockRepository) GetDatasetHealth(ctx context.Context, dataset string) (*clickhouseRepo.DatasetHealth, error) {
+	args := m.Called(ctx, dataset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*clickhouseRepo.DatasetHealth), args.Error(1)
 }
 
 // Test NewService
@@ -120,7 +148,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 		{
 			name: "invalid time range",
 			req: &request.LogQueryRequest{
-				Dataset:   "test",
+				Dataset:   "test-dataset",
 				StartTime: &[]time.Time{time.Now()}[0],
 				EndTime:   &[]time.Time{time.Now().Add(-24 * time.Hour)}[0],
 				PageSize:  10,
@@ -130,7 +158,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 		{
 			name: "negative page size",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				PageSize: -1,
 			},
 			wantErr: "page_size must be non-negative",
@@ -138,7 +166,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 		{
 			name: "filter too short",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				Filter:   "a",
 				PageSize: 10,
 			},
@@ -147,7 +175,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 		{
 			name: "filter too long",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				Filter:   string(make([]byte, 1001)),
 				PageSize: 10,
 			},
@@ -156,7 +184,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 		{
 			name: "SQL injection attempt",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				Filter:   "'; DROP TABLE logs; --",
 				PageSize: 10,
 			},
@@ -165,7 +193,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 		{
 			name: "time range too large",
 			req: &request.LogQueryRequest{
-				Dataset:   "test",
+				Dataset:   "test-dataset",
 				StartTime: &[]time.Time{time.Now().Add(-8 * 24 * time.Hour)}[0],
 				EndTime:   &[]time.Time{time.Now()}[0],
 				PageSize:  10,
@@ -251,7 +279,7 @@ func TestQueryLogs_PaginationAndHasMore(t *testing.T) {
 		{
 			name: "full page with more results",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				Page:     0,
 				PageSize: 10,
 			},
@@ -262,7 +290,7 @@ func TestQueryLogs_PaginationAndHasMore(t *testing.T) {
 		{
 			name: "last page",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				Page:     2,
 				PageSize: 10,
 			},
@@ -273,7 +301,7 @@ func TestQueryLogs_PaginationAndHasMore(t *testing.T) {
 		{
 			name: "exact page size",
 			req: &request.LogQueryRequest{
-				Dataset:  "test",
+				Dataset:  "test-dataset",
 				Page:     0,
 				PageSize: 10,
 			},

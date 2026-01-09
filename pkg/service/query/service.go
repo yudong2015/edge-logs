@@ -16,14 +16,16 @@ import (
 
 // Service provides log query business logic with comprehensive validation and transformation
 type Service struct {
-	repo clickhouseRepo.Repository
+	repo              clickhouseRepo.Repository
+	datasetValidator *DatasetValidator
 }
 
 // NewService creates a new query service with repository dependency
 func NewService(repo clickhouseRepo.Repository) *Service {
 	klog.InfoS("初始化日志查询服务")
 	return &Service{
-		repo: repo,
+		repo:             repo,
+		datasetValidator: NewDatasetValidator(),
 	}
 }
 
@@ -149,23 +151,16 @@ func (s *Service) validateQueryRequest(req *request.LogQueryRequest) error {
 	return nil
 }
 
-// validateDatasetAccess validates dataset access permissions
+// validateDatasetAccess validates dataset access permissions using comprehensive validator
 func (s *Service) validateDatasetAccess(dataset string) error {
-	// Dataset name validation
-	if dataset == "" {
-		return fmt.Errorf("dataset is required")
+	// Use the comprehensive dataset validator
+	if err := s.datasetValidator.ValidateDataset(dataset); err != nil {
+		return fmt.Errorf("dataset validation failed: %w", err)
 	}
 
-	// Basic security checks
-	if len(dataset) > 100 {
-		return fmt.Errorf("dataset name too long")
-	}
-
+	// Additional service-level validations can be added here
 	// TODO: Implement actual dataset authorization once auth system is in place
-	// For now, just validate basic format
-	if containsSQLInjection(dataset) {
-		return fmt.Errorf("dataset name contains invalid characters")
-	}
+	// For now, dataset validator handles security validation
 
 	return nil
 }
@@ -292,4 +287,103 @@ func enrichLabels(originalTags map[string]string, log clickhouse.LogEntry) map[s
 	}
 
 	return labels
+}
+
+// QueryLogsByDataset queries logs with strict dataset scoping and existence validation
+func (s *Service) QueryLogsByDataset(ctx context.Context, req *request.LogQueryRequest) (*response.LogQueryResponse, error) {
+	startTime := time.Now()
+
+	klog.InfoS("开始数据集作用域日志查询",
+		"dataset", req.Dataset,
+		"start_time", req.StartTime,
+		"end_time", req.EndTime,
+		"filter", req.Filter,
+		"namespace", req.Namespace)
+
+	// Step 1: Validate dataset parameter is present
+	if req.Dataset == "" {
+		return nil, NewValidationError("query_logs_by_dataset", "dataset parameter is required")
+	}
+
+	// Step 2: Enhanced dataset validation including existence check
+	if err := s.validateDatasetWithExistence(ctx, req.Dataset); err != nil {
+		klog.ErrorS(err, "数据集验证失败", "dataset", req.Dataset)
+		return nil, err
+	}
+
+	// Step 3: Execute standard query with existing validation
+	response, err := s.QueryLogs(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 4: Enhance response with dataset metadata
+	if err := s.enrichResponseWithDataset(ctx, response, req.Dataset); err != nil {
+		klog.ErrorS(err, "数据集元数据增强失败", "dataset", req.Dataset)
+		// Don't fail the query, just log the error
+	}
+
+	duration := time.Since(startTime)
+	klog.InfoS("数据集作用域日志查询完成",
+		"dataset", req.Dataset,
+		"returned_logs", len(response.Logs),
+		"total_count", response.TotalCount,
+		"duration_ms", duration.Milliseconds())
+
+	return response, nil
+}
+
+// validateDatasetWithExistence validates dataset and checks existence
+func (s *Service) validateDatasetWithExistence(ctx context.Context, dataset string) error {
+	// Basic validation
+	if err := s.validateDatasetAccess(dataset); err != nil {
+		return err
+	}
+
+	// Check if dataset exists and contains data
+	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
+		exists, err := repo.DatasetExists(ctx, dataset)
+		if err != nil {
+			return NewRepositoryError("dataset_existence_check", err)
+		}
+		if !exists {
+			return NewValidationError("dataset_not_found", fmt.Sprintf("dataset '%s' not found or contains no data", dataset))
+		}
+	}
+
+	return nil
+}
+
+// enrichResponseWithDataset adds dataset metadata to response
+func (s *Service) enrichResponseWithDataset(ctx context.Context, response *response.LogQueryResponse, dataset string) error {
+	// Try to get dataset metadata if repository supports it
+	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
+		metadata, err := repo.GetDatasetStats(ctx, dataset)
+		if err != nil {
+			return fmt.Errorf("failed to get dataset metadata: %w", err)
+		}
+
+		// Add dataset information to response (this will be implemented when we enhance response structure)
+		klog.V(4).InfoS("数据集元数据获取成功",
+			"dataset", dataset,
+			"total_logs", metadata.TotalLogs,
+			"partition_count", metadata.PartitionCount)
+	}
+
+	return nil
+}
+
+// DatasetExists checks if a dataset exists and contains data
+func (s *Service) DatasetExists(ctx context.Context, dataset string) (bool, error) {
+	// Validate dataset format first
+	if err := s.datasetValidator.ValidateDataset(dataset); err != nil {
+		return false, fmt.Errorf("invalid dataset format: %w", err)
+	}
+
+	// Check existence in repository
+	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
+		return repo.DatasetExists(ctx, dataset)
+	}
+
+	return false, fmt.Errorf("repository does not support dataset existence checking")
 }

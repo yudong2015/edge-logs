@@ -14,11 +14,40 @@ type LogEntry struct {
 	Labels    map[string]string `json:"labels"`
 }
 
-// LogQueryResponse represents a log query response
+// LogQueryResponse represents a log query response with dataset metadata
 type LogQueryResponse struct {
-	Logs       []LogEntry `json:"logs"`
-	TotalCount int        `json:"total_count"`
-	Page       int        `json:"page"`
-	PageSize   int        `json:"page_size"`
-	HasMore    bool       `json:"has_more"`
+	Logs       []LogEntry      `json:"logs"`
+	TotalCount int             `json:"total_count"`
+	Page       int             `json:"page"`
+	PageSize   int             `json:"page_size"`
+	HasMore    bool            `json:"has_more"`
+	Dataset    string          `json:"dataset,omitempty"`           // Dataset name from request
+	Query      *QuerySummary   `json:"query,omitempty"`             // Query parameters summary
+	Metadata   *DatasetMetadata `json:"metadata,omitempty"`          // Dataset metadata
+}
+
+// QuerySummary provides a sanitized summary of the query parameters
+type QuerySummary struct {
+	StartTime     *time.Time        `json:"start_time,omitempty"`
+	EndTime       *time.Time        `json:"end_time,omitempty"`
+	Filter        string            `json:"filter,omitempty"`
+	Namespace     string            `json:"namespace,omitempty"`
+	Filters       map[string]string `json:"filters,omitempty"`
+}
+
+// DatasetMetadata contains metadata about the queried dataset
+type DatasetMetadata struct {
+	Name            string     `json:"name"`
+	TotalLogs       int64      `json:"total_logs"`
+	DateRange       *DateRange `json:"date_range,omitempty"`
+	LastUpdated     *time.Time `json:"last_updated,omitempty"`
+	PartitionCount  int        `json:"partition_count"`
+	DataSizeBytes   int64      `json:"data_size_bytes"`
+	Health          string     `json:"health,omitempty"`
+}
+
+// DateRange represents the earliest and latest timestamps in a dataset
+type DateRange struct {
+	Earliest time.Time `json:"earliest"`
+	Latest   time.Time `json:"latest"`
 }

@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,13 +11,15 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/outpostos/edge-logs/pkg/model/request"
-	response "github.com/outpostos/edge-logs/pkg/response"
+	"github.com/outpostos/edge-logs/pkg/model/response"
+	responseWrapper "github.com/outpostos/edge-logs/pkg/response"
 	query "github.com/outpostos/edge-logs/pkg/service/query"
 )
 
 // LogHandler handles log API requests with K8s API Aggregation pattern
 type LogHandler struct {
 	queryService *query.Service
+	metrics      *DatasetMetrics
 }
 
 // NewLogHandler creates a new log handler with service dependency
@@ -24,6 +27,7 @@ func NewLogHandler(queryService *query.Service) *LogHandler {
 	klog.InfoS("初始化日志 API 处理器")
 	return &LogHandler{
 		queryService: queryService,
+		metrics:      NewDatasetMetrics(),
 	}
 }
 
@@ -57,14 +61,14 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Param(ws.QueryParameter("order_by", "排序字段 (timestamp, severity)").DataType("string")).
 		Param(ws.QueryParameter("direction", "排序方向 (asc, desc)").DataType("string")).
 		Returns(http.StatusOK, "查询成功", response.LogQueryResponse{}).
-		Returns(http.StatusBadRequest, "请求参数错误", response.ErrorResponse{}).
-		Returns(http.StatusNotFound, "数据集不存在", response.ErrorResponse{}).
-		Returns(http.StatusInternalServerError, "服务器内部错误", response.ErrorResponse{}))
+		Returns(http.StatusBadRequest, "请求参数错误", responseWrapper.ErrorResponse{}).
+		Returns(http.StatusNotFound, "数据集不存在", responseWrapper.ErrorResponse{}).
+		Returns(http.StatusInternalServerError, "服务器内部错误", responseWrapper.ErrorResponse{}))
 
 	// Health check endpoint
 	ws.Route(ws.GET("/health").To(h.healthCheck).
 		Doc("健康检查").
-		Returns(http.StatusOK, "服务正常", response.HealthResponse{}))
+		Returns(http.StatusOK, "服务正常", responseWrapper.HealthResponse{}))
 
 	container.Add(ws)
 
@@ -94,16 +98,27 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
-	// Execute query through service layer
-	result, err := h.queryService.QueryLogs(req.Request.Context(), queryReq)
+	// Validate dataset before executing query
+	if err := h.validateDataset(dataset); err != nil {
+		klog.ErrorS(err, "数据集验证失败", "dataset", dataset)
+		h.handleDatasetError(resp, err, dataset)
+		return
+	}
+
+	// Execute dataset-scoped query through service layer
+	result, err := h.queryService.QueryLogsByDataset(req.Request.Context(), queryReq)
 	if err != nil {
 		duration := time.Since(startTime)
 		klog.ErrorS(err, "日志查询执行失败",
 			"dataset", dataset,
 			"duration_ms", duration.Milliseconds())
-		h.writeErrorResponse(resp, h.mapErrorToStatusCode(err), fmt.Sprintf("查询失败: %v", err))
+		h.handleServiceError(resp, err, dataset)
+		h.metrics.RecordDatasetError(dataset, "query_execution_failed")
 		return
 	}
+
+	// Enhance response with dataset metadata
+	h.enrichResponseWithDataset(result, dataset, queryReq)
 
 	duration := time.Since(startTime)
 	klog.InfoS("日志查询请求处理成功",
@@ -111,6 +126,9 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 		"returned_logs", len(result.Logs),
 		"total_count", result.TotalCount,
 		"duration_ms", duration.Milliseconds())
+
+	// Record successful metrics
+	h.metrics.RecordDatasetSuccess(dataset, len(result.Logs), duration)
 
 	// Log performance warnings
 	if duration > 2*time.Second {
@@ -128,7 +146,7 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 func (h *LogHandler) healthCheck(req *restful.Request, resp *restful.Response) {
 	klog.V(4).InfoS("健康检查请求")
 
-	healthResponse := &response.HealthResponse{
+	healthResponse := &responseWrapper.HealthResponse{
 		Status:  "healthy",
 		Version: "v1alpha1",
 		Service: "edge-logs-api",
@@ -208,7 +226,7 @@ func (h *LogHandler) parseQueryRequest(req *restful.Request, dataset string) (*r
 
 // writeErrorResponse writes error responses in consistent format
 func (h *LogHandler) writeErrorResponse(resp *restful.Response, statusCode int, message string) {
-	errorResponse := &response.ErrorResponse{
+	errorResponse := &responseWrapper.ErrorResponse{
 		Code:    statusCode,
 		Message: message,
 	}
@@ -258,4 +276,91 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// validateDataset validates dataset parameter with comprehensive rules
+func (h *LogHandler) validateDataset(dataset string) error {
+	// Basic format validation
+	if dataset == "" {
+		return NewDatasetValidationError(dataset, "dataset parameter is required")
+	}
+
+	// Use service layer for dataset existence checking
+	exists, err := h.queryService.DatasetExists(context.Background(), dataset)
+	if err != nil {
+		return NewDatasetValidationError(dataset, fmt.Sprintf("failed to validate dataset: %v", err))
+	}
+
+	if !exists {
+		return NewDatasetNotFoundError(dataset)
+	}
+
+	return nil
+}
+
+// handleDatasetError handles dataset-specific errors with appropriate HTTP responses
+func (h *LogHandler) handleDatasetError(resp *restful.Response, err error, dataset string) {
+	statusCode := MapDatasetErrorToHTTPStatus(err)
+	message := GetDatasetErrorMessage(err, dataset)
+
+	h.writeErrorResponse(resp, statusCode, message)
+
+	// Record error metrics
+	var errorType string
+	switch err.(type) {
+	case *DatasetNotFoundError:
+		errorType = "not_found"
+	case *DatasetUnauthorizedError:
+		errorType = "unauthorized"
+	case *DatasetValidationError:
+		errorType = "validation_failed"
+	case *DatasetSecurityError:
+		errorType = "security_violation"
+	default:
+		errorType = "unknown"
+	}
+
+	h.metrics.RecordDatasetError(dataset, errorType)
+}
+
+// handleServiceError handles service layer errors
+func (h *LogHandler) handleServiceError(resp *restful.Response, err error, dataset string) {
+	statusCode := h.mapErrorToStatusCode(err)
+	message := fmt.Sprintf("查询失败: %v", err)
+
+	h.writeErrorResponse(resp, statusCode, message)
+}
+
+// enrichResponseWithDataset enriches response with dataset metadata and query summary
+func (h *LogHandler) enrichResponseWithDataset(result *response.LogQueryResponse, dataset string, queryReq *request.LogQueryRequest) {
+	// Set dataset in response
+	result.Dataset = dataset
+
+	// Build query summary
+	result.Query = &response.QuerySummary{
+		StartTime: queryReq.StartTime,
+		EndTime:   queryReq.EndTime,
+		Filter:    queryReq.Filter,
+		Namespace: queryReq.Namespace,
+		Filters:   make(map[string]string),
+	}
+
+	// Add additional filters to summary
+	if queryReq.PodName != "" {
+		result.Query.Filters["pod_name"] = queryReq.PodName
+	}
+	if queryReq.NodeName != "" {
+		result.Query.Filters["node_name"] = queryReq.NodeName
+	}
+	if queryReq.ContainerName != "" {
+		result.Query.Filters["container_name"] = queryReq.ContainerName
+	}
+	if queryReq.Severity != "" {
+		result.Query.Filters["severity"] = queryReq.Severity
+	}
+
+	klog.V(4).InfoS("响应增强完成",
+		"dataset", dataset,
+		"has_metadata", result.Metadata != nil,
+		"filter_count", len(result.Query.Filters))
 }

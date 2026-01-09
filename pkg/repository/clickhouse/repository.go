@@ -20,6 +20,12 @@ type Repository interface {
 	InsertLogsBatch(ctx context.Context, logs []clickhouse.LogEntry) error
 	HealthCheck(ctx context.Context) error
 	Close() error
+
+	// Dataset-specific methods for enhanced data isolation
+	DatasetExists(ctx context.Context, dataset string) (bool, error)
+	GetDatasetStats(ctx context.Context, dataset string) (*DatasetMetadata, error)
+	ListAvailableDatasets(ctx context.Context) ([]string, error)
+	GetDatasetHealth(ctx context.Context, dataset string) (*DatasetHealth, error)
 }
 
 // ClickHouseRepository implements Repository interface for ClickHouse
