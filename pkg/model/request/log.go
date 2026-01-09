@@ -63,8 +63,15 @@ type LogQueryRequest struct {
 	OrderBy   string `json:"order_by,omitempty"` // timestamp, severity
 	Direction string `json:"direction,omitempty"` // asc, desc
 
+	// Advanced content search parameters
+	ContentSearch     string `json:"content_search,omitempty"`      // Advanced content search query
+	ContentHighlight  *bool  `json:"content_highlight,omitempty"`   // Enable search highlighting
+	ContentRelevance  *bool  `json:"content_relevance,omitempty"`   // Enable relevance scoring
+	ContentOperator   string `json:"content_operator,omitempty"`    // Default boolean operator (AND/OR)
+
 	// Internal fields for parsed filters (not exposed in JSON)
-	K8sFilters []K8sFilter `json:"-"` // Parsed K8s filter conditions
+	K8sFilters            []K8sFilter                    `json:"-"` // Parsed K8s filter conditions
+	ParsedContentSearch   *ParsedContentSearchExpression `json:"-"` // Parsed content search expression
 }
 
 // Validate validates the log query request
@@ -112,4 +119,25 @@ func (r *LogQueryRequest) Validate() error {
 	}
 
 	return nil
+}
+
+// ParsedContentSearchExpression represents a parsed content search expression
+// This is a lightweight version that can be imported without circular dependencies
+type ParsedContentSearchExpression struct {
+	Filters          []ContentSearchFilter `json:"filters"`
+	GlobalOperator   string                `json:"global_operator,omitempty"`
+	HighlightEnabled bool                  `json:"highlight_enabled,omitempty"`
+	MaxSnippetLength int                   `json:"max_snippet_length,omitempty"`
+	RelevanceScoring bool                  `json:"relevance_scoring,omitempty"`
+}
+
+// ContentSearchFilter represents a single content search condition
+type ContentSearchFilter struct {
+	Type              string  `json:"type"`
+	Pattern           string  `json:"pattern"`
+	CaseInsensitive   bool    `json:"case_insensitive,omitempty"`
+	BooleanOperator   string  `json:"boolean_operator,omitempty"`
+	ProximityDistance int     `json:"proximity_distance,omitempty"`
+	FieldTarget       string  `json:"field_target,omitempty"`
+	Weight            float64 `json:"weight,omitempty"`
 }

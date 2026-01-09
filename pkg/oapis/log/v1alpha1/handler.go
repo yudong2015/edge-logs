@@ -18,20 +18,22 @@ import (
 
 // LogHandler handles log API requests with K8s API Aggregation pattern
 type LogHandler struct {
-	queryService *query.Service
-	metrics      *DatasetMetrics
-	timeMetrics  *TimeMetrics
-	k8sMetrics   *K8sMetrics
+	queryService       *query.Service
+	metrics           *DatasetMetrics
+	timeMetrics       *TimeMetrics
+	k8sMetrics        *K8sMetrics
+	contentMetrics    *ContentSearchMetrics
 }
 
 // NewLogHandler creates a new log handler with service dependency
 func NewLogHandler(queryService *query.Service) *LogHandler {
 	klog.InfoS("初始化日志 API 处理器")
 	return &LogHandler{
-		queryService: queryService,
-		metrics:      NewDatasetMetrics(),
-		timeMetrics:  NewTimeMetrics(),
-		k8sMetrics:   NewK8sMetrics(),
+		queryService:   queryService,
+		metrics:        NewDatasetMetrics(),
+		timeMetrics:    NewTimeMetrics(),
+		k8sMetrics:     NewK8sMetrics(),
+		contentMetrics: NewContentSearchMetrics(),
 	}
 }
 
@@ -61,7 +63,11 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Param(ws.QueryParameter("pods", "Pod名称数组 (同pod_names)").DataType("string")).
 		Param(ws.QueryParameter("node_name", "节点名称").DataType("string")).
 		Param(ws.QueryParameter("container_name", "容器名称").DataType("string")).
-		Param(ws.QueryParameter("filter", "日志内容过滤").DataType("string")).
+		Param(ws.QueryParameter("filter", "日志内容过滤 (向后兼容)").DataType("string")).
+		Param(ws.QueryParameter("content_search", "高级内容搜索 (支持: exact, icase:term, *wildcard*, regex:pattern, \"phrase search\", boolean:expr, proximity:5:terms)").DataType("string")).
+		Param(ws.QueryParameter("content_highlight", "启用搜索结果高亮 (true/false)").DataType("boolean")).
+		Param(ws.QueryParameter("content_relevance", "启用相关性评分 (true/false)").DataType("boolean")).
+		Param(ws.QueryParameter("content_operator", "默认布尔运算符 (AND/OR)").DataType("string")).
 		Param(ws.QueryParameter("severity", "日志级别").DataType("string")).
 		Param(ws.QueryParameter("page", "页码 (从0开始)").DataType("integer")).
 		Param(ws.QueryParameter("page_size", "每页大小").DataType("integer")).
@@ -193,6 +199,27 @@ func (h *LogHandler) parseQueryRequest(req *restful.Request, dataset string) (*r
 	queryReq.Severity = req.QueryParameter("severity")
 	queryReq.NodeName = req.QueryParameter("node_name")
 	queryReq.ContainerName = req.QueryParameter("container_name")
+
+	// Parse advanced content search parameters
+	queryReq.ContentSearch = req.QueryParameter("content_search")
+	queryReq.ContentOperator = req.QueryParameter("content_operator")
+
+	// Parse boolean parameters for content search
+	if highlightStr := req.QueryParameter("content_highlight"); highlightStr != "" {
+		highlight, err := strconv.ParseBool(highlightStr)
+		if err != nil {
+			return nil, fmt.Errorf("content_highlight 参数错误: %w", err)
+		}
+		queryReq.ContentHighlight = &highlight
+	}
+
+	if relevanceStr := req.QueryParameter("content_relevance"); relevanceStr != "" {
+		relevance, err := strconv.ParseBool(relevanceStr)
+		if err != nil {
+			return nil, fmt.Errorf("content_relevance 参数错误: %w", err)
+		}
+		queryReq.ContentRelevance = &relevance
+	}
 
 	// Parse K8s parameters with enhanced pattern support
 	namespaces, pods, err := h.parseK8sParameters(req)

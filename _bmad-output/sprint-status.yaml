@@ -54,11 +54,11 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: Dataset Management and Data Isolation
-  epic-2: in-progress
+  epic-2: done
   2-1-dataset-based-query-routing: done
   2-2-time-range-filtering-with-millisecond-precision: done
-  2-3-namespace-and-pod-filtering: ready-for-dev
-  2-4-content-based-log-search: backlog
+  2-3-namespace-and-pod-filtering: done
+  2-4-content-based-log-search: ready-for-dev
   epic-2-retrospective: optional
 
   # Epic 3: Advanced Query and Analytics

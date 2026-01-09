@@ -12,18 +12,24 @@ type LogEntry struct {
 	Pod       string            `json:"pod"`
 	Container string            `json:"container"`
 	Labels    map[string]string `json:"labels"`
+
+	// Content search enhancement fields
+	HighlightedContent     []string `json:"highlighted_content,omitempty"`     // Search result highlighting
+	SearchRelevanceScore   float64  `json:"search_relevance_score,omitempty"`  // Relevance scoring
+	SearchMatchSummary     string   `json:"search_match_summary,omitempty"`    // Search match summary
 }
 
 // LogQueryResponse represents a log query response with dataset metadata
 type LogQueryResponse struct {
-	Logs       []LogEntry      `json:"logs"`
-	TotalCount int             `json:"total_count"`
-	Page       int             `json:"page"`
-	PageSize   int             `json:"page_size"`
-	HasMore    bool            `json:"has_more"`
-	Dataset    string          `json:"dataset,omitempty"`           // Dataset name from request
-	Query      *QuerySummary   `json:"query,omitempty"`             // Query parameters summary
+	Logs       []LogEntry       `json:"logs"`
+	TotalCount int              `json:"total_count"`
+	Page       int              `json:"page"`
+	PageSize   int              `json:"page_size"`
+	HasMore    bool             `json:"has_more"`
+	Dataset    string           `json:"dataset,omitempty"`           // Dataset name from request
+	Query      *QuerySummary    `json:"query,omitempty"`             // Query parameters summary
 	Metadata   *DatasetMetadata `json:"metadata,omitempty"`          // Dataset metadata
+	SearchMeta *SearchMetadata  `json:"search_metadata,omitempty"`   // Content search metadata
 }
 
 // QuerySummary provides a sanitized summary of the query parameters
@@ -50,4 +56,16 @@ type DatasetMetadata struct {
 type DateRange struct {
 	Earliest time.Time `json:"earliest"`
 	Latest   time.Time `json:"latest"`
+}
+
+// SearchMetadata contains metadata about content search results
+type SearchMetadata struct {
+	PatternsMatched    int     `json:"patterns_matched"`
+	TotalHighlights    int     `json:"total_highlights"`
+	SearchComplexity   float64 `json:"search_complexity"`
+	QueryTimeMs        int64   `json:"query_time_ms"`
+	HighlightEnabled   bool    `json:"highlight_enabled"`
+	RelevanceScoring   bool    `json:"relevance_scoring"`
+	SearchType         string  `json:"search_type"`         // exact, wildcard, regex, boolean, etc.
+	OptimizationUsed   string  `json:"optimization_used"`   // tokenbf_v1, none, etc.
 }

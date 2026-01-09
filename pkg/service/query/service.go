@@ -16,20 +16,22 @@ import (
 
 // Service provides log query business logic with comprehensive validation and transformation
 type Service struct {
-	repo              clickhouseRepo.Repository
-	datasetValidator *DatasetValidator
-	timeValidator    *TimeRangeValidator
-	k8sValidator     *K8sResourceValidator
+	repo                  clickhouseRepo.Repository
+	datasetValidator     *DatasetValidator
+	timeValidator        *TimeRangeValidator
+	k8sValidator         *K8sResourceValidator
+	contentSearchValidator *ContentSearchValidator
 }
 
 // NewService creates a new query service with repository dependency
 func NewService(repo clickhouseRepo.Repository) *Service {
 	klog.InfoS("初始化日志查询服务")
 	return &Service{
-		repo:             repo,
-		datasetValidator: NewDatasetValidator(),
-		timeValidator:    NewTimeRangeValidator(),
-		k8sValidator:     NewK8sResourceValidator(),
+		repo:                   repo,
+		datasetValidator:      NewDatasetValidator(),
+		timeValidator:         NewTimeRangeValidator(),
+		k8sValidator:          NewK8sResourceValidator(),
+		contentSearchValidator: NewContentSearchValidator(),
 	}
 }
 
@@ -127,6 +129,11 @@ func (s *Service) validateQueryRequest(req *request.LogQueryRequest) error {
 	// K8s metadata filtering validation
 	if err := s.validateK8sFilters(req); err != nil {
 		return fmt.Errorf("K8s filter validation failed: %w", err)
+	}
+
+	// Content search validation and parsing
+	if err := s.validateAndParseContentSearch(req); err != nil {
+		return fmt.Errorf("content search validation failed: %w", err)
 	}
 
 	// Filter parameter sanitization
@@ -520,4 +527,74 @@ func (s *Service) DatasetExists(ctx context.Context, dataset string) (bool, erro
 	}
 
 	return false, fmt.Errorf("repository does not support dataset existence checking")
+}
+
+// validateAndParseContentSearch validates and parses content search parameters
+func (s *Service) validateAndParseContentSearch(req *request.LogQueryRequest) error {
+	// Handle legacy filter parameter for backward compatibility
+	searchQuery := req.Filter
+	if req.ContentSearch != "" {
+		searchQuery = req.ContentSearch
+	}
+
+	// Skip if no content search is specified
+	if searchQuery == "" {
+		return nil
+	}
+
+	// Prepare search options
+	options := map[string]string{
+		"operator": "AND", // Default
+	}
+
+	if req.ContentOperator != "" && (req.ContentOperator == "AND" || req.ContentOperator == "OR") {
+		options["operator"] = req.ContentOperator
+	}
+
+	if req.ContentHighlight != nil && !*req.ContentHighlight {
+		options["highlight"] = "false"
+	}
+
+	if req.ContentRelevance != nil && !*req.ContentRelevance {
+		options["relevance"] = "false"
+	}
+
+	// Parse and validate content search
+	contentSearch, err := s.contentSearchValidator.ParseContentSearch(searchQuery, options)
+	if err != nil {
+		return fmt.Errorf("failed to parse content search: %w", err)
+	}
+
+	// Convert to request format to avoid circular imports
+	if contentSearch != nil {
+		parsedContentSearch := &request.ParsedContentSearchExpression{
+			GlobalOperator:   contentSearch.GlobalOperator,
+			HighlightEnabled: contentSearch.HighlightEnabled,
+			MaxSnippetLength: contentSearch.MaxSnippetLength,
+			RelevanceScoring: contentSearch.RelevanceScoring,
+		}
+
+		// Convert filters
+		for _, filter := range contentSearch.Filters {
+			parsedContentSearch.Filters = append(parsedContentSearch.Filters, request.ContentSearchFilter{
+				Type:              string(filter.Type),
+				Pattern:           filter.Pattern,
+				CaseInsensitive:   filter.CaseInsensitive,
+				BooleanOperator:   filter.BooleanOperator,
+				ProximityDistance: filter.ProximityDistance,
+				FieldTarget:       filter.FieldTarget,
+				Weight:            filter.Weight,
+			})
+		}
+
+		req.ParsedContentSearch = parsedContentSearch
+
+		klog.V(4).InfoS("Content search parsed and validated",
+			"dataset", req.Dataset,
+			"filters", len(parsedContentSearch.Filters),
+			"highlight", parsedContentSearch.HighlightEnabled,
+			"relevance", parsedContentSearch.RelevanceScoring)
+	}
+
+	return nil
 }

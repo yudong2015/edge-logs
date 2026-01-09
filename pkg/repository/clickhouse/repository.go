@@ -11,6 +11,23 @@ import (
 	"github.com/outpostos/edge-logs/pkg/config"
 	"github.com/outpostos/edge-logs/pkg/model/clickhouse"
 	"github.com/outpostos/edge-logs/pkg/model/request"
+	"github.com/outpostos/edge-logs/pkg/model/search"
+)
+
+// Type aliases for shared search types
+type ContentSearchType = search.ContentSearchType
+type ContentSearchFilter = search.ContentSearchFilter
+type ContentSearchExpression = search.ContentSearchExpression
+
+// Constants from search package
+const (
+	ContentSearchExact        = search.ContentSearchExact
+	ContentSearchCaseInsensitive = search.ContentSearchCaseInsensitive
+	ContentSearchRegex        = search.ContentSearchRegex
+	ContentSearchWildcard     = search.ContentSearchWildcard
+	ContentSearchPhrase       = search.ContentSearchPhrase
+	ContentSearchProximity    = search.ContentSearchProximity
+	ContentSearchBoolean      = search.ContentSearchBoolean
 )
 
 // Repository interface defines log data access methods with dataset isolation
@@ -88,12 +105,49 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 		}
 	}()
 
-	// Use K8s-optimized query builder for enhanced metadata filtering support
+	// Use content search query builder if content search is present
 	var query, countQuery string
 	var args, countArgs []interface{}
 	var err error
 
-	if len(req.K8sFilters) > 0 {
+	if req.ParsedContentSearch != nil && len(req.ParsedContentSearch.Filters) > 0 {
+		// Use content search query builder for advanced content search
+		csqb := NewContentSearchQueryBuilder()
+
+		// Convert parsed content search back to service format for query building
+		contentSearch := &ContentSearchExpression{
+			GlobalOperator:   req.ParsedContentSearch.GlobalOperator,
+			HighlightEnabled: req.ParsedContentSearch.HighlightEnabled,
+			MaxSnippetLength: req.ParsedContentSearch.MaxSnippetLength,
+			RelevanceScoring: req.ParsedContentSearch.RelevanceScoring,
+		}
+
+		for _, filter := range req.ParsedContentSearch.Filters {
+			contentSearch.Filters = append(contentSearch.Filters, ContentSearchFilter{
+				Type:              ContentSearchType(filter.Type),
+				Pattern:           filter.Pattern,
+				CaseInsensitive:   filter.CaseInsensitive,
+				BooleanOperator:   filter.BooleanOperator,
+				ProximityDistance: filter.ProximityDistance,
+				FieldTarget:       filter.FieldTarget,
+				Weight:            filter.Weight,
+			})
+		}
+
+		// Build content search optimized main query
+		query, args, err = csqb.BuildContentSearchQuery(req, contentSearch)
+		if err != nil {
+			klog.ErrorS(err, "内容搜索查询构建失败", "dataset", req.Dataset)
+			return nil, 0, NewQueryError("build_content_search_query", "", err).Err
+		}
+
+		// Build content search optimized count query for pagination
+		countQuery, countArgs, err = csqb.BuildContentSearchCountQuery(req, contentSearch)
+		if err != nil {
+			klog.ErrorS(err, "内容搜索计数查询构建失败", "dataset", req.Dataset)
+			return nil, 0, NewQueryError("build_content_search_count_query", "", err).Err
+		}
+	} else if len(req.K8sFilters) > 0 {
 		// Use K8s-optimized query builder when K8s filters are present
 		kqb := NewK8sQueryBuilder()
 
