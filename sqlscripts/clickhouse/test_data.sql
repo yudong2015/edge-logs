@@ -235,8 +235,9 @@ WHERE timestamp >= now64(9) - INTERVAL 1 HOUR
 GROUP BY severity
 ORDER BY log_count DESC;
 
--- Clean up test data (uncomment to remove test data after validation)
--- DELETE FROM logs WHERE content LIKE '%Application started successfully%' OR content LIKE '%Database connection established%' OR content LIKE '%Failed to connect to external service%';
+-- Clean up test data (optional - use for test environment cleanup)
+-- To clean test data, run: DELETE FROM logs WHERE tags['test'] = 'true';
+-- Note: Production data should never include tags['test'] = 'true'
 
 -- Test Results Summary
 SELECT

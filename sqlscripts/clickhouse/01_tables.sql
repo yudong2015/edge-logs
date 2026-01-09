@@ -84,10 +84,23 @@ PARTITION BY toYYYYMM(created_at)
 ORDER BY (dataset, created_at)
 TTL created_at + INTERVAL 30 DAY DELETE;
 
--- Insert default dataset
-INSERT INTO datasets (name, display_name, description) VALUES
-('default', 'Default Dataset', 'Default dataset for all logs')
-ON DUPLICATE KEY UPDATE updated_at = now();
+-- Insert default dataset (ClickHouse compatible syntax)
+INSERT INTO datasets (name, display_name, description)
+SELECT 'default', 'Default Dataset', 'Default dataset for all logs'
+WHERE NOT EXISTS (
+    SELECT 1 FROM datasets WHERE name = 'default'
+);
+
+-- Supporting table for materialized view (create before view to avoid dependency issues)
+CREATE TABLE IF NOT EXISTS severity_stats (
+    dataset String,
+    k8s_namespace_name String,
+    severity String,
+    hour DateTime,
+    count UInt64
+) ENGINE = SummingMergeTree()
+PARTITION BY toYYYYMM(hour)
+ORDER BY (dataset, k8s_namespace_name, severity, hour);
 
 -- Create materialized view for severity level statistics (aligned with new schema)
 CREATE MATERIALIZED VIEW IF NOT EXISTS severity_stats_mv
@@ -100,14 +113,3 @@ AS SELECT
     count() as count
 FROM logs
 GROUP BY dataset, k8s_namespace_name, severity, hour;
-
--- Supporting table for materialized view
-CREATE TABLE IF NOT EXISTS severity_stats (
-    dataset String,
-    k8s_namespace_name String,
-    severity String,
-    hour DateTime,
-    count UInt64
-) ENGINE = SummingMergeTree()
-PARTITION BY toYYYYMM(hour)
-ORDER BY (dataset, k8s_namespace_name, severity, hour);

@@ -81,14 +81,14 @@ ALTER TABLE logs ADD INDEX IF NOT EXISTS idx_severity_set
 -- Performance tuning: Optimize merge tree settings for edge computing workloads
 -- Configured for high-frequency small writes from edge nodes
 ALTER TABLE logs MODIFY SETTING
-    max_parts_in_total = 10000,
-    max_bytes_to_merge_at_max_space_in_pool = 161061273600,
-    merge_with_ttl_timeout = 14400,
-    max_replicated_merges_in_queue = 100,
-    -- Edge-specific optimizations
-    parts_to_throw_insert = 3000,
-    parts_to_delay_insert = 1000,
-    max_insert_delayed_streams_for_parallel_write = 1000;
+    max_parts_in_total = 10000,                              -- Maximum number of parts before merge
+    max_bytes_to_merge_at_max_space_in_pool = 161061273600,  -- 150GB max merge size
+    merge_with_ttl_timeout = 14400,                          -- TTL merge timeout (4 hours)
+    max_replicated_merges_in_queue = 100,                    -- Max concurrent merges
+    -- Edge-specific optimizations for high-frequency small writes
+    parts_to_throw_insert = 3000,                            -- Reject inserts when too many parts
+    parts_to_delay_insert = 1000,                            -- Start delaying inserts threshold
+    max_insert_delayed_streams_for_parallel_write = 1000;    -- Parallel write optimization
 
 -- Create dictionary for dataset metadata (for very frequent dataset lookups)
 -- Uncomment when needed for high-performance dataset validation:

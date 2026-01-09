@@ -25,7 +25,7 @@ func TestClickHouseSchema(t *testing.T) {
 
 	// Setup ClickHouse test container
 	clickHouseContainer, err := clickhousecontainer.RunContainer(ctx,
-		testcontainers.WithImage("clickhouse/clickhouse-server:23.8"),
+		testcontainers.WithImage("clickhouse/clickhouse-server:24.8"),
 		clickhousecontainer.WithUsername("default"),
 		clickhousecontainer.WithPassword(""),
 		clickhousecontainer.WithDatabase("edge_logs"),
