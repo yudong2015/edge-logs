@@ -268,7 +268,7 @@ func TestContentSearchQueryBuilder_BooleanOperators(t *testing.T) {
 			RelevanceScoring: false,
 		}
 
-		query, _, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
+		query, args, err := builder.BuildContentSearchQuery(baseReq, contentSearch)
 
 		assert.NoError(t, err)
 		assert.Contains(t, query, "NOT (")

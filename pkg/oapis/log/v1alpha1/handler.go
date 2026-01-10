@@ -84,10 +84,32 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Doc("健康检查").
 		Returns(http.StatusOK, "服务正常", responseWrapper.HealthResponse{}))
 
+	// Aggregation endpoint
+	ws.Route(ws.GET("/logdatasets/{dataset}/aggregation").To(h.queryAggregation).
+		Doc("聚合查询边缘计算日志").
+		Notes("按维度（严重性、命名空间、主机、时间桶等）聚合日志，支持多种聚合函数").
+		Param(ws.PathParameter("dataset", "数据���名称").DataType("string").Required(true)).
+		Param(ws.QueryParameter("start_time", "开始时间 (ISO 8601格式)").DataType("string")).
+		Param(ws.QueryParameter("end_time", "结束时间 (ISO 8601格式)").DataType("string")).
+		Param(ws.QueryParameter("dimensions", "聚合维度，逗号分隔 (severity,namespace,pod_name,node_name,host_name,container_name,timestamp,dataset)").DataType("string").Required(true)).
+		Param(ws.QueryParameter("functions", "聚合函数，逗号分隔 (count,sum,avg,min,max,distinct_count)").DataType("string")).
+		Param(ws.QueryParameter("time_bucket", "时间维度桶大小 (1m,5m,15m,1h,6h,12h,1d,1w)").DataType("string")).
+		Param(ws.QueryParameter("namespaces", "Kubernetes命名空间过滤").DataType("string")).
+		Param(ws.QueryParameter("pod_names", "Pod名称过滤").DataType("string")).
+		Param(ws.QueryParameter("severity", "日志级别过滤").DataType("string")).
+		Param(ws.QueryParameter("content_search", "内容搜索过滤").DataType("string")).
+		Param(ws.QueryParameter("order_by", "排序字段").DataType("string")).
+		Param(ws.QueryParameter("limit", "结果限制").DataType("integer")).
+		Param(ws.QueryParameter("offset", "结果偏移").DataType("integer")).
+		Returns(http.StatusOK, "查询成功", response.AggregationResponse{}).
+		Returns(http.StatusBadRequest, "请求参数错误", responseWrapper.ErrorResponse{}).
+		Returns(http.StatusNotFound, "数据集不存在", responseWrapper.ErrorResponse{}).
+		Returns(http.StatusInternalServerError, "服务器内部错误", responseWrapper.ErrorResponse{}))
+
 	container.Add(ws)
 
 	klog.InfoS("日志 API 处理器安装完成",
-		"endpoints", 2,
+		"endpoints", 3,
 		"base_path", "/apis/log.theriseunion.io/v1alpha1")
 }
 

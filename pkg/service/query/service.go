@@ -598,3 +598,37 @@ func (s *Service) validateAndParseContentSearch(req *request.LogQueryRequest) er
 
 	return nil
 }
+
+// QueryAggregation executes aggregation queries with validation
+func (s *Service) QueryAggregation(ctx context.Context, req *request.AggregationRequest) (*response.AggregationResponse, error) {
+	startTime := time.Now()
+
+	klog.InfoS("开始聚合查询服务",
+		"dataset", req.Dataset,
+		"dimensions", len(req.Dimensions),
+		"functions", len(req.Functions),
+		"start_time", req.StartTime,
+		"end_time", req.EndTime)
+
+	// Validate aggregation request
+	validator := NewAggregationDimensionValidator()
+	if err := validator.ValidateAggregationRequest(req); err != nil {
+		klog.ErrorS(err, "聚合请求验证失败", "dataset", req.Dataset)
+		return nil, NewValidationError("aggregation_validation", err.Error())
+	}
+
+	// Execute aggregation query through repository
+	result, err := s.repo.QueryAggregation(ctx, req)
+	if err != nil {
+		klog.ErrorS(err, "聚合查询执行失败", "dataset", req.Dataset)
+		return nil, NewRepositoryError("query_aggregation", err)
+	}
+
+	duration := time.Since(startTime)
+	klog.InfoS("聚合查询服务完成",
+		"dataset", req.Dataset,
+		"result_count", len(result.Results),
+		"duration_ms", duration.Milliseconds())
+
+	return result, nil
+}

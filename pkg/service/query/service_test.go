@@ -11,6 +11,7 @@ import (
 
 	"github.com/outpostos/edge-logs/pkg/model/clickhouse"
 	"github.com/outpostos/edge-logs/pkg/model/request"
+	"github.com/outpostos/edge-logs/pkg/model/response"
 	clickhouseRepo "github.com/outpostos/edge-logs/pkg/repository/clickhouse"
 )
 
@@ -72,6 +73,17 @@ func (m *MockRepository) GetDatasetHealth(ctx context.Context, dataset string) (
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*clickhouseRepo.DatasetHealth), args.Error(1)
+}
+
+func (m *MockRepository) QueryAggregation(ctx context.Context, req *request.AggregationRequest) (*response.AggregationResponse, error) {
+	// Type assertion to ensure response.AggregationResponse is used
+	var respType *response.AggregationResponse
+	_ = respType
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*response.AggregationResponse), args.Error(1)
 }
 
 // Test NewService

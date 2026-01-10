@@ -11,6 +11,7 @@ import (
 	"github.com/outpostos/edge-logs/pkg/config"
 	"github.com/outpostos/edge-logs/pkg/model/clickhouse"
 	"github.com/outpostos/edge-logs/pkg/model/request"
+	"github.com/outpostos/edge-logs/pkg/model/response"
 	"github.com/outpostos/edge-logs/pkg/model/search"
 )
 
@@ -33,6 +34,7 @@ const (
 // Repository interface defines log data access methods with dataset isolation
 type Repository interface {
 	QueryLogs(ctx context.Context, req *request.LogQueryRequest) ([]clickhouse.LogEntry, int, error)
+	QueryAggregation(ctx context.Context, req *request.AggregationRequest) (*response.AggregationResponse, error)
 	InsertLog(ctx context.Context, log *clickhouse.LogEntry) error
 	InsertLogsBatch(ctx context.Context, logs []clickhouse.LogEntry) error
 	HealthCheck(ctx context.Context) error
@@ -484,3 +486,150 @@ func (r *ClickHouseRepository) validateLogEntry(log *clickhouse.LogEntry) error 
 
 	return nil
 }
+
+// QueryAggregation executes aggregation queries on ClickHouse
+func (r *ClickHouseRepository) QueryAggregation(ctx context.Context, req *request.AggregationRequest) (*response.AggregationResponse, error) {
+	startTime := time.Now()
+
+	klog.InfoS("开始聚合查询",
+		"dataset", req.Dataset,
+		"dimensions", len(req.Dimensions),
+		"functions", len(req.Functions),
+		"start_time", req.StartTime,
+		"end_time", req.EndTime)
+
+	// Build aggregation query
+	queryBuilder := NewAggregationQueryBuilder()
+	query, args, err := queryBuilder.BuildAggregationQuery(req)
+	if err != nil {
+		klog.ErrorS(err, "聚合查询构建失败", "dataset", req.Dataset)
+		return nil, fmt.Errorf("failed to build aggregation query: %w", err)
+	}
+
+	klog.V(4).InfoS("执行聚合查询",
+		"dataset", req.Dataset,
+		"query", query,
+		"args_count", len(args))
+
+	// Execute query
+	db := r.cm.GetDB()
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		klog.ErrorS(err, "聚合查询执行失败",
+			"dataset", req.Dataset,
+			"query", query)
+		return nil, MapClickHouseError(err, "execute_aggregation_query").Err
+	}
+	defer rows.Close()
+
+	// Parse results
+	var results []response.AggregationResult
+
+	// Get column names for proper mapping
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	dimensionCount := len(req.Dimensions)
+
+	for rows.Next() {
+		// Create slice to hold all column values
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			klog.ErrorS(err, "聚合结果扫描失败", "dataset", req.Dataset)
+			return nil, MapClickHouseError(err, "scan_aggregation_results").Err
+		}
+
+		// Separate dimensions and metrics
+		dimensions := make(map[string]interface{})
+		metrics := make(map[string]interface{})
+
+		for i, col := range columns {
+			if i < dimensionCount {
+				// This is a dimension
+				dimAlias := req.Dimensions[i].Alias
+				if dimAlias == "" {
+					dimAlias = string(req.Dimensions[i].Type)
+				}
+				dimensions[dimAlias] = values[i]
+			} else {
+				// This is a metric (aggregation function result)
+				metrics[col] = values[i]
+			}
+		}
+
+		results = append(results, response.AggregationResult{
+			Dimensions: dimensions,
+			Metrics:    metrics,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		klog.ErrorS(err, "聚合结果迭代失败", "dataset", req.Dataset)
+		return nil, MapClickHouseError(err, "iterate_aggregation_results").Err
+	}
+
+	duration := time.Since(startTime)
+
+	klog.InfoS("聚合查询完成",
+		"dataset", req.Dataset,
+		"result_rows", len(results),
+		"duration_ms", duration.Milliseconds())
+
+	// Build response
+	aggResp := &response.AggregationResponse{
+		Dataset: req.Dataset,
+		Results: results,
+		Metadata: &response.AggregationMetadata{
+			QueryDurationMs: duration.Milliseconds(),
+			DimensionCount:  len(req.Dimensions),
+			FunctionCount:   len(req.Functions),
+			ResultSetSize:   len(results),
+			GeneratedAt:     time.Now(),
+		},
+		Query: &response.AggregationQueryInfo{
+			Dimensions: buildDimensionNames(req.Dimensions),
+			Functions:  buildFunctionNames(req.Functions),
+			StartTime:  req.StartTime,
+			EndTime:    req.EndTime,
+		},
+	}
+
+	return aggResp, nil
+}
+
+// buildDimensionNames extracts dimension names from request
+func buildDimensionNames(dimensions []request.AggregationDimension) []string {
+	var names []string
+	for _, dim := range dimensions {
+		name := string(dim.Type)
+		if dim.Alias != "" {
+			name = dim.Alias
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// buildFunctionNames extracts function names from request
+func buildFunctionNames(functions []request.AggregationFunction) []string {
+	var names []string
+	for _, fn := range functions {
+		name := string(fn.Type)
+		if fn.Field != "" {
+			name += "(" + fn.Field + ")"
+		}
+		if fn.Alias != "" {
+			name = fn.Alias
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
