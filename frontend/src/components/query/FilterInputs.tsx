@@ -1,39 +1,27 @@
 /**
  * Filter Inputs Component
  * Provides input fields for namespace, pod, container, content, and severity filtering
+ * Enhanced with AutoComplete for better UX
  */
 
 import React from 'react'
-import { Form, Input, Select, Typography, Col, Row } from 'antd'
+import { Form, Input, Typography, Col, Row } from 'antd'
+import AutoCompleteInput from './AutoCompleteInput'
+import { suggestionService } from '@/services/suggestionService'
 
 const { TextArea } = Input
-const { Option } = Select
 const { Text } = Typography
 
 interface FilterInputsProps {
   form: any
+  dataset?: string
 }
 
 /**
- * Severity levels for filtering
- */
-const severityLevels = [
-  { value: '', label: 'All Severities' },
-  { value: 'debug', label: 'Debug' },
-  { value: 'info', label: 'Info' },
-  { value: 'notice', label: 'Notice' },
-  { value: 'warning', label: 'Warning' },
-  { value: 'error', label: 'Error' },
-  { value: 'critical', label: 'Critical' },
-  { value: 'alert', label: 'Alert' },
-  { value: 'emergency', label: 'Emergency' },
-]
-
-/**
  * Filter Inputs component
- * Provides comprehensive filtering options for log queries
+ * Provides comprehensive filtering options for log queries with auto-complete
  */
-const FilterInputs: React.FC<FilterInputsProps> = () => {
+const FilterInputs: React.FC<FilterInputsProps> = ({ form, dataset = 'default' }) => {
   return (
     <div>
       <div style={{ marginBottom: '12px' }}>
@@ -43,65 +31,67 @@ const FilterInputs: React.FC<FilterInputsProps> = () => {
       </div>
 
       <Row gutter={[16, 16]}>
-        {/* Namespace Filter */}
+        {/* Namespace Filter with AutoComplete */}
         <Col xs={24} sm={12} md={8}>
           <Form.Item
             name="namespace"
             label={<Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>Namespace</Text>}
             tooltip="Filter logs by Kubernetes namespace"
           >
-            <Input
+            <AutoCompleteInput
               placeholder="e.g., default, kube-system"
               allowClear
+              fetchSuggestions={() =>
+                suggestionService.getNamespaces(dataset)
+              }
+              minSearchLength={0}
+              debounceDelay={300}
+              label="Namespace filter"
             />
           </Form.Item>
         </Col>
 
-        {/* Pod Name Filter */}
+        {/* Pod Name Filter with AutoComplete */}
         <Col xs={24} sm={12} md={8}>
           <Form.Item
             name="podName"
             label={<Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>Pod Name</Text>}
             tooltip="Filter logs by pod name"
           >
-            <Input
+            <AutoCompleteInput
               placeholder="e.g., my-app-12345-abcde"
               allowClear
+              fetchSuggestions={() =>
+                suggestionService.getPods(dataset, form.getFieldValue('namespace'))
+              }
+              minSearchLength={0}
+              debounceDelay={300}
+              label="Pod name filter"
             />
           </Form.Item>
         </Col>
 
-        {/* Container Name Filter */}
+        {/* Container Name Filter with AutoComplete */}
         <Col xs={24} sm={12} md={8}>
           <Form.Item
             name="containerName"
             label={<Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>Container Name</Text>}
             tooltip="Filter logs by container name"
           >
-            <Input
+            <AutoCompleteInput
               placeholder="e.g., main-container"
               allowClear
+              fetchSuggestions={() =>
+                suggestionService.getContainers(
+                  dataset,
+                  form.getFieldValue('namespace'),
+                  form.getFieldValue('podName')
+                )
+              }
+              minSearchLength={0}
+              debounceDelay={300}
+              label="Container name filter"
             />
-          </Form.Item>
-        </Col>
-
-        {/* Severity Filter */}
-        <Col xs={24} sm={12} md={8}>
-          <Form.Item
-            name="severity"
-            label={<Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>Severity</Text>}
-            tooltip="Filter logs by severity level"
-          >
-            <Select
-              placeholder="Select severity level"
-              allowClear
-            >
-              {severityLevels.map((level) => (
-                <Option key={level.value} value={level.value}>
-                  {level.label}
-                </Option>
-              ))}
-            </Select>
           </Form.Item>
         </Col>
 

@@ -1,6 +1,6 @@
 # Story 4.3: Query Builder and Auto-completion
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,54 +20,54 @@ So that I can quickly create complex queries without memorizing field names and 
 
 ## Tasks / Subtasks
 
-- [ ] Create auto-completion service for field suggestions (AC: 1, 5)
-  - [ ] Implement API service for fetching unique namespaces
-  - [ ] Implement API service for fetching unique pod names
-  - [ ] Implement API service for fetching unique container names
-  - [ ] Add debouncing for suggestion requests
-  - [ ] Cache suggestions to reduce API calls
+- [x] Create auto-completion service for field suggestions (AC: 1, 5)
+  - [x] Implement API service for fetching unique namespaces
+  - [x] Implement API service for fetching unique pod names
+  - [x] Implement API service for fetching unique container names
+  - [x] Add debouncing for suggestion requests
+  - [x] Cache suggestions to reduce API calls
 
-- [ ] Implement AutoComplete components for query fields (AC: 1)
-  - [ ] Create namespace AutoComplete with suggestions
-  - [ ] Create pod name AutoComplete with namespace filtering
-  - [ ] Create container name AutoComplete with pod filtering
-  - [ ] Add loading states for suggestion fetching
-  - [ ] Handle empty results and error states
+- [x] Implement AutoComplete components for query fields (AC: 1)
+  - [x] Create namespace AutoComplete with suggestions
+  - [x] Create pod name AutoComplete with namespace filtering
+  - [x] Create container name AutoComplete with pod filtering
+  - [x] Add loading states for suggestion fetching
+  - [x] Handle empty results and error states
 
-- [ ] Add quick filter buttons for severity levels (AC: 3)
-  - [ ] Create severity filter button group component
-  - [ ] Implement buttons for Error, Warning, Info, Debug, Notice
-  - [ ] Add toggle behavior (single select or multi-select)
-  - [ ] Integrate with QueryForm component
-  - [ ] Add visual feedback for active filters
+- [x] Add quick filter buttons for severity levels (AC: 3)
+  - [x] Create severity filter button group component
+  - [x] Implement buttons for Error, Warning, Info, Debug, Notice
+  - [x] Add toggle behavior (single select or multi-select)
+  - [x] Integrate with QueryForm component
+  - [x] Add visual feedback for active filters
 
-- [ ] Enhance time range picker with shortcuts (AC: 4)
-  - [ ] Add predefined time range buttons
-  - [ ] Implement Last 15min, 1hour, 6hours, 24hours, 7days shortcuts
-  - [ ] Add "Today" and "Yesterday" shortcuts
-  - [ ] Add custom date range picker as fallback
-  - [ ] Format display relative time (e.g., "Last 15 minutes")
+- [x] Enhance time range picker with shortcuts (AC: 4)
+  - [x] Add predefined time range buttons
+  - [x] Implement Last 15min, 1hour, 6hours, 24hours, 7days shortcuts
+  - [x] Add "Today" and "Yesterday" shortcuts
+  - [x] Add custom date range picker as fallback
+  - [x] Format display relative time (e.g., "Last 15 minutes")
 
-- [ ] Create visual query builder component (AC: 2)
-  - [ ] Design filter condition card component
-  - [ ] Implement AND/OR logic for combining conditions
-  - [ ] Add remove button for each condition
-  - [ ] Add "Add Condition" button
-  - [ ] Support multiple filter types: equals, contains, regex, exists
+- [x] Create visual query builder component (AC: 2)
+  - [x] Design filter condition card component
+  - [x] Implement AND/OR logic for combining conditions
+  - [x] Add remove button for each condition
+  - [x] Add "Add Condition" button
+  - [x] Support multiple filter types: equals, contains, regex, exists
 
-- [ ] Integrate with existing QueryForm component (AC: 1-5)
-  - [ ] Add AutoComplete to namespace and pod inputs
-  - [ ] Replace basic severity select with quick filter buttons
-  - [ ] Add time range shortcuts to TimeRangePicker
-  - [ ] Ensure backward compatibility with existing query interface
-  - [ ] Test integration with VirtualizedLogList
+- [x] Integrate with existing QueryForm component (AC: 1-5)
+  - [x] Add AutoComplete to namespace and pod inputs
+  - [x] Replace basic severity select with quick filter buttons
+  - [x] Add time range shortcuts to TimeRangePicker
+  - [x] Ensure backward compatibility with existing query interface
+  - [x] Test integration with VirtualizedLogList
 
-- [ ] Add keyboard shortcuts and accessibility (AC: 2)
-  - [ ] Implement Ctrl+Space for auto-complete trigger
-  - [ ] Add Escape key to close suggestion dropdown
-  - [ ] Support arrow key navigation in suggestions
-  - [ ] Add ARIA labels for screen readers
-  - [ ] Test with keyboard-only navigation
+- [x] Add keyboard shortcuts and accessibility (AC: 2)
+  - [x] Implement Ctrl+Space for auto-complete trigger
+  - [x] Add Escape key to close suggestion dropdown
+  - [x] Support arrow key navigation in suggestions
+  - [x] Add ARIA labels for screen readers
+  - [x] Test with keyboard-only navigation
 
 ## Dev Notes
 
@@ -193,27 +193,28 @@ interface SuggestionResponse {
 
 ## File List
 
-**New Files to be Created:**
+**New Files Created:**
 ```
 frontend/src/components/query/
 ├── AutoCompleteInput.tsx
 ├── SeverityQuickFilter.tsx
-├── TimeRangeShortcuts.tsx
-└── QueryBuilder.tsx (optional)
+└── QueryBuilder.tsx
 
 frontend/src/services/
 └── suggestionService.ts
+
+frontend/src/components/query/
+└── index.ts                         # Component exports
 ```
 
-**Files to be Modified:**
+**Files Modified:**
 ```
 frontend/
-├── package.json                    # Add lodash.debounce
-├── src/App.tsx                     # Potential updates
+├── src/types/api.ts                 # Added SuggestionResponse type
 └── src/components/query/
-    ├── QueryForm.tsx               # Add severity filters
-    ├── TimeRangePicker.tsx         # Add shortcuts
-    └── FilterInputs.tsx            # Add AutoComplete
+    ├── QueryForm.tsx               # Added severity quick filter
+    ├── TimeRangePicker.tsx         # Added Today/Yesterday shortcuts
+    └── FilterInputs.tsx            # Added AutoComplete to filters
 ```
 
 ## Change Log
@@ -225,6 +226,17 @@ frontend/
 - Identified Ant Design components for implementation
 - Planned API integration for field suggestions
 
+**Implementation Complete (2026-01-10):**
+- Created suggestionService.ts with debouncing and LRU cache
+- Created AutoCompleteInput.tsx reusable component with loading states
+- Created SeverityQuickFilter.tsx with color-coded buttons
+- Created QueryBuilder.tsx for visual filter construction
+- Enhanced TimeRangePicker.tsx with Today/Yesterday shortcuts
+- Updated FilterInputs.tsx to use AutoComplete for namespace, pod, container
+- Updated QueryForm.tsx to integrate SeverityQuickFilter
+- Added SuggestionResponse type to api.ts
+- Created index.ts for component exports
+
 **Status Transitions:**
 - Story created from backlog: ready-for-dev ✅
-- Ready for development work to begin ✅
+- Implementation completed: review ✅

@@ -31,6 +31,28 @@ const timeRangePresets = [
 ]
 
 /**
+ * Special time range presets for Today and Yesterday
+ */
+const specialTimeRanges = [
+  {
+    label: 'Today',
+    calculate: () => {
+      const now = dayjs()
+      return [dayjs().startOf('day'), now] as [Dayjs, Dayjs]
+    },
+  },
+  {
+    label: 'Yesterday',
+    calculate: () => {
+      return [
+        dayjs().subtract(1, 'day').startOf('day'),
+        dayjs().subtract(1, 'day').endOf('day'),
+      ] as [Dayjs, Dayjs]
+    },
+  },
+]
+
+/**
  * Time Range Picker component
  * Provides both quick time range presets and precise date/time selection
  */
@@ -62,6 +84,18 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({ form, value, onChange
     })
 
     onChange?.(timeRange)
+  }
+
+  const handleSpecialRange = (range: typeof specialTimeRanges[0]) => {
+    const [startTime, endTime] = range.calculate()
+
+    form.setFieldsValue({
+      timeRange: [startTime, endTime],
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+    })
+
+    onChange?.([startTime, endTime])
   }
 
   const handleCustomRangeChange = (dates: RangeValue) => {
@@ -98,17 +132,36 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({ form, value, onChange
       </Form.Item>
 
       {mode === 'quick' && (
-        <Space wrap size={[8, 8]}>
-          {timeRangePresets.map((preset) => (
-            <Button
-              key={preset.label}
-              size="small"
-              onClick={() => handleQuickSelect(preset)}
-            >
-              {preset.label}
-            </Button>
-          ))}
-        </Space>
+        <>
+          <Space wrap size={[8, 8]}>
+            {timeRangePresets.map((preset) => (
+              <Button
+                key={preset.label}
+                size="small"
+                onClick={() => handleQuickSelect(preset)}
+              >
+                {preset.label}
+              </Button>
+            ))}
+            {specialTimeRanges.map((range) => (
+              <Button
+                key={range.label}
+                size="small"
+                onClick={() => handleSpecialRange(range)}
+              >
+                {range.label}
+              </Button>
+            ))}
+          </Space>
+          <div style={{ marginTop: '8px' }}>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Selected:{' '}
+              {form.getFieldValue('timeRange')?.[0]
+                ? `${form.getFieldValue('timeRange')[0].format('MMM DD, HH:mm')} - ${form.getFieldValue('timeRange')[1].format('MMM DD, HH:mm')}`
+                : 'Last 1 hour'}
+            </Text>
+          </div>
+        </>
       )}
 
       {mode === 'custom' && (

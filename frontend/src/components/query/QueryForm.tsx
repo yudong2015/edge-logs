@@ -16,6 +16,7 @@ import {
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons'
 import TimeRangePicker from './TimeRangePicker'
 import FilterInputs from './FilterInputs'
+import SeverityQuickFilter from './SeverityQuickFilter'
 import type { LogQueryParams } from '@/types/api'
 import { queryLogs } from '@/services/logQueryService'
 
@@ -44,6 +45,12 @@ interface FormValues {
 const QueryForm: React.FC<QueryFormProps> = ({ onQueryResults, onLoadingChange }) => {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [severity, setSeverity] = useState<string | undefined>()
+
+  const handleSeverityChange = (newSeverity: string | undefined) => {
+    setSeverity(newSeverity)
+    form.setFieldsValue({ severity: newSeverity })
+  }
 
   const handleSubmit = async (values: FormValues) => {
     try {
@@ -129,6 +136,12 @@ const QueryForm: React.FC<QueryFormProps> = ({ onQueryResults, onLoadingChange }
 
           {/* Time Range Selection */}
           <TimeRangePicker form={form} />
+
+          {/* Severity Quick Filter */}
+          <SeverityQuickFilter
+            value={severity}
+            onChange={handleSeverityChange}
+          />
 
           {/* Filter Inputs */}
           <FilterInputs form={form} />

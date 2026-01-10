@@ -83,3 +83,11 @@ export interface SeverityLevel {
   color: string;
   priority: number;
 }
+
+/**
+ * Suggestion response for auto-complete fields
+ */
+export interface SuggestionResponse {
+  values: string[];
+  total: number;
+}
