@@ -69,9 +69,9 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: Professional Web Interface
-  epic-4: in-progress
+  epic-4: done
   4-1-core-web-interface-with-ant-design: done
   4-2-high-performance-log-display-with-virtual-scrolling: done
   4-3-query-builder-and-auto-completion: done
-  4-4-query-history-and-saved-queries: review
+  4-4-query-history-and-saved-queries: done
   epic-4-retrospective: optional

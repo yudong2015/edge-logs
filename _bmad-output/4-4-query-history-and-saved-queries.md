@@ -1,6 +1,6 @@
 # Story 4.4: Query History and Saved Queries
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -347,29 +347,29 @@ export class QueryHistoryService {
 
 ## File List
 
-**New Files to be Created:**
+**New Files Created:**
 ```
 frontend/src/components/query/
-├── QueryHistory.tsx
-├── SavedQueries.tsx
-├── QueryHistoryItem.tsx
-├── SaveQueryDialog.tsx
-└── QueryHistoryPanel.tsx
+├── QueryHistoryItem.tsx            # Individual history/saved entry component
+├── SaveQueryDialog.tsx             # Modal for naming saved queries
+└── QueryHistoryPanel.tsx           # Combined history + saved panel with tabs
 
 frontend/src/services/
-└── queryHistoryService.ts
+└── queryHistoryService.ts          # History/storage management service
 
 frontend/src/types/
-└── queryHistory.ts
+└── queryHistory.ts                 # History/saved query type definitions
 ```
 
-**Files to be Modified:**
+**Files Modified:**
 ```
-frontend/
-├── src/App.tsx                     # Optional: add history context
-└── src/components/query/
-    └── QueryForm.tsx               # Integrate history panel
+frontend/src/components/query/
+└── QueryForm.tsx                   # Added history panel integration
 ```
+
+**Note:** Original plan called for separate `QueryHistory.tsx` and `SavedQueries.tsx` components.
+During implementation, these were combined into `QueryHistoryPanel.tsx` with tabbed interface,
+which provides better UX and code organization.
 
 ## Change Log
 

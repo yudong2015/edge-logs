@@ -56,6 +56,8 @@ const QueryForm: React.FC<QueryFormProps> = ({ onQueryResults, onLoadingChange }
 
   /**
    * Handle replay from history/saved queries
+   * Populates form with query parameters without auto-submitting
+   * User can review and modify before executing
    */
   const handleReplayQuery = useCallback((params: LogQueryParams) => {
     // Set form values from replayed params
@@ -76,10 +78,8 @@ const QueryForm: React.FC<QueryFormProps> = ({ onQueryResults, onLoadingChange }
 
     setSeverity(params.severity || undefined)
 
-    // Auto-submit the replayed query
-    setTimeout(() => {
-      form.submit()
-    }, 100)
+    // Note: Form is populated but NOT auto-submitted
+    // User can review parameters and click Search to execute
   }, [form])
 
   const handleSubmit = async (values: FormValues) => {

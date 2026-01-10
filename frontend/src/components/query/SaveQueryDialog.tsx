@@ -3,7 +3,7 @@
  * Modal dialog for naming and saving a query
  */
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Modal, Input, Form, message } from 'antd'
 import type { LogQueryParams } from '@/types/api'
 
@@ -41,7 +41,7 @@ const SaveQueryDialog: React.FC<SaveQueryDialogProps> = ({
   /**
    * Handle save click
    */
-  const handleOk = useCallback(async () => {
+  const handleOk = async () => {
     try {
       const values = await form.validateFields()
       setLoading(true)
@@ -58,15 +58,15 @@ const SaveQueryDialog: React.FC<SaveQueryDialogProps> = ({
     } catch (error) {
       setLoading(false)
     }
-  }, [form, onSave])
+  }
 
   /**
    * Handle cancel click
    */
-  const handleCancel = useCallback(() => {
+  const handleCancel = () => {
     form.resetFields()
     onCancel()
-  }, [form, onCancel])
+  }
 
   /**
    * Generate default name from params

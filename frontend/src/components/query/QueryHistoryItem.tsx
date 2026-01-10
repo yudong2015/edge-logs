@@ -21,6 +21,11 @@ dayjs.extend(relativeTime)
 
 const { Text } = Typography
 
+// Named constants for timestamp formatting
+const MINUTES_PER_HOUR = 60
+const MINUTES_PER_DAY = 1440
+const MINUTES_PER_MONTH = 43200  // 30 days
+
 export interface QueryHistoryItemProps {
   entry: QueryHistoryEntry | SavedQueryEntry
   isSaved: boolean
@@ -71,13 +76,13 @@ const QueryHistoryItem: React.FC<QueryHistoryItemProps> = ({
 
     if (diffMinutes < 1) {
       return 'Just now'
-    } else if (diffMinutes < 60) {
+    } else if (diffMinutes < MINUTES_PER_HOUR) {
       return `${diffMinutes}m ago`
-    } else if (diffMinutes < 1440) {
-      const hours = Math.floor(diffMinutes / 60)
+    } else if (diffMinutes < MINUTES_PER_DAY) {
+      const hours = Math.floor(diffMinutes / MINUTES_PER_HOUR)
       return `${hours}h ago`
-    } else if (diffMinutes < 43200) {
-      const days = Math.floor(diffMinutes / 1440)
+    } else if (diffMinutes < MINUTES_PER_MONTH) {
+      const days = Math.floor(diffMinutes / MINUTES_PER_DAY)
       return `${days}d ago`
     }
     return time.format('MMM D')
