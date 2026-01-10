@@ -14,7 +14,14 @@
       "Bash(go mod tidy:*)",
       "Bash(GOPROXY=http://192.168.1.5:7890,https://goproxy.cn,direct go mod tidy:*)",
       "Bash(GOPROXY=https://goproxy.cn,direct go mod tidy:*)",
-      "Bash(GOPROXY=https://goproxy.io,direct go mod tidy:*)"
+      "Bash(GOPROXY=https://goproxy.io,direct go mod tidy:*)",
+      "Skill(bmad:bmm:workflows:sprint-status)",
+      "Bash(pnpm install)",
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm add:*)",
+      "Bash(git reset:*)",
+      "Skill(bmad:bmm:workflows:code-review)",
+      "Bash(git restore:*)"
     ]
   }
 }

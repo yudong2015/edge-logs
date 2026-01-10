@@ -3,7 +3,7 @@
  * Keyword highlighting utility for log content
  */
 
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 
 interface HighlightTextProps {
   text: string
