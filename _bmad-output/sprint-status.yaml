@@ -73,5 +73,5 @@ development_status:
   4-1-core-web-interface-with-ant-design: done
   4-2-high-performance-log-display-with-virtual-scrolling: done
   4-3-query-builder-and-auto-completion: done
-  4-4-query-history-and-saved-queries: backlog
+  4-4-query-history-and-saved-queries: ready-for-dev
   epic-4-retrospective: optional
