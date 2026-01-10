@@ -65,7 +65,7 @@ development_status:
   epic-3: in-progress
   3-1-log-aggregation-by-dimensions: done
   3-2-k8s-metadata-enrichment-service: done
-  3-3-advanced-query-performance-optimization: backlog
+  3-3-advanced-query-performance-optimization: review
   epic-3-retrospective: optional
 
   # Epic 4: Professional Web Interface
