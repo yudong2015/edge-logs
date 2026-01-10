@@ -1,6 +1,6 @@
 # Story 3.1: Log aggregation by dimensions
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

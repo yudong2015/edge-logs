@@ -63,7 +63,7 @@ development_status:
 
   # Epic 3: Advanced Query and Analytics
   epic-3: in-progress
-  3-1-log-aggregation-by-dimensions: ready-for-dev
+  3-1-log-aggregation-by-dimensions: done
   3-2-k8s-metadata-enrichment-service: backlog
   3-3-advanced-query-performance-optimization: backlog
   epic-3-retrospective: optional
