@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { ConfigProvider, App as AntdApp } from 'antd'
 import MainLayout from '@/components/layout/MainLayout'
 import QueryForm from '@/components/query/QueryForm'
-import LogResultsTable from '@/components/results/LogResultsTable'
+import VirtualizedLogList from '@/components/results/VirtualizedLogList'
 import ResultSummary from '@/components/results/ResultSummary'
 import EmptyState from '@/components/results/EmptyState'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -22,13 +22,16 @@ function App() {
   const [queryResults, setQueryResults] = useState<LogQueryResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [highlightKeyword, setHighlightKeyword] = useState('')
 
   /**
    * Handle query execution and results display
    */
-  const handleQueryResults = (results: LogQueryResponse, _params: LogQueryParams) => {
+  const handleQueryResults = (results: LogQueryResponse, params: LogQueryParams) => {
     setQueryResults(results)
     setHasSearched(true)
+    // Set highlight keyword from filter parameter
+    setHighlightKeyword(params.filter || '')
   }
 
   /**
@@ -60,7 +63,12 @@ function App() {
             totalCount={queryResults.totalCount}
             executionTime={queryResults.executionTime}
           />
-          <LogResultsTable logs={queryResults.logs} loading={isLoading} />
+          <VirtualizedLogList
+            logs={queryResults.logs}
+            loading={isLoading}
+            highlightKeyword={highlightKeyword}
+            height={600}
+          />
         </>
       )
     }

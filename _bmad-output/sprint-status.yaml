@@ -71,7 +71,7 @@ development_status:
   # Epic 4: Professional Web Interface
   epic-4: in-progress
   4-1-core-web-interface-with-ant-design: done
-  4-2-high-performance-log-display-with-virtual-scrolling: ready-for-dev
+  4-2-high-performance-log-display-with-virtual-scrolling: review
   4-3-query-builder-and-auto-completion: backlog
   4-4-query-history-and-saved-queries: backlog
   epic-4-retrospective: optional

@@ -1,6 +1,6 @@
 # Story 4.2: High-Performance Log Display with Virtual Scrolling
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -22,56 +22,56 @@ So that I can scroll through thousands of log entries smoothly without page free
 
 ## Tasks / Subtasks
 
-- [ ] Install and configure virtual scrolling library (AC: 1)
-  - [ ] Evaluate and select virtual scrolling library (react-window or react-virtuoso)
-  - [ ] Install selected library with TypeScript types
-  - [ ] Configure library integration with existing components
-  - [ ] Set up proper item sizing and rendering optimization
+- [x] Install and configure virtual scrolling library (AC: 1)
+  - [x] Evaluate and select virtual scrolling library (react-window or react-virtuoso)
+  - [x] Install selected library with TypeScript types
+  - [x] Configure library integration with existing components
+  - [x] Set up proper item sizing and rendering optimization
 
-- [ ] Replace basic table with virtualized list component (AC: 1, 2)
-  - [ ] Create VirtualizedLogList component using selected library
-  - [ ] Implement dynamic row height calculation for log content
-  - [ ] Add scroll position state management
-  - [ ] Integrate with existing LogEntry types and data structures
-  - [ ] Preserve existing filtering and sorting capabilities
+- [x] Replace basic table with virtualized list component (AC: 1, 2)
+  - [x] Create VirtualizedLogList component using selected library
+  - [x] Implement dynamic row height calculation for log content
+  - [x] Add scroll position state management
+  - [x] Integrate with existing LogEntry types and data structures
+  - [x] Preserve existing filtering and sorting capabilities
 
-- [ ] Implement log syntax highlighting with severity colors (AC: 3)
-  - [ ] Create LogEntryCell component with syntax highlighting
-  - [ ] Add severity-based color coding (debug: gray, info: blue, notice: green, warning: orange, error: red, critical: dark red)
-  - [ ] Highlight key log fields (timestamp, namespace, pod, content)
-  - [ ] Ensure highlighting works correctly in virtualized rows
-  - [ ] Add hover states for better readability
+- [x] Implement log syntax highlighting with severity colors (AC: 3)
+  - [x] Create LogEntryCell component with syntax highlighting
+  - [x] Add severity-based color coding (debug: gray, info: blue, notice: green, warning: orange, error: red, critical: dark red)
+  - [x] Highlight key log fields (timestamp, namespace, pod, content)
+  - [x] Ensure highlighting works correctly in virtualized rows
+  - [x] Add hover states for better readability
 
-- [ ] Implement search keyword highlighting (AC: 4)
-  - [ ] Create HighlightText utility component for matching keywords
-  - [ ] Support case-sensitive and case-insensitive search
-  - [ ] Highlight multiple matches within a single log entry
-  - [ ] Add visual highlighting (background color, bold text)
-  - [ ] Support regex patterns for advanced search
-  - [ ] Add keyboard navigation (F3/Shift+F3) for next/previous match
+- [x] Implement search keyword highlighting (AC: 4)
+  - [x] Create HighlightText utility component for matching keywords
+  - [x] Support case-sensitive and case-insensitive search
+  - [x] Highlight multiple matches within a single log entry
+  - [x] Add visual highlighting (background color, bold text)
+  - [ ] Support regex patterns for advanced search (deferred - basic highlighting implemented)
+  - [ ] Add keyboard navigation (F3/Shift+F3) for next/previous match (deferred - can be added in future story)
 
-- [ ] Add loading states and data fetching optimization (AC: 5)
-  - [ ] Implement progressive loading for large datasets
-  - [ ] Add loading skeleton for virtual list placeholder
-  - [ ] Show loading indicator during data fetch
-  - [ ] Implement infinite scroll or pagination for backend data
-  - [ ] Add retry mechanism for failed data loads
-  - [ ] Cache rendered data to prevent re-fetching
+- [x] Add loading states and data fetching optimization (AC: 5)
+  - [x] Implement progressive loading for large datasets
+  - [x] Add loading skeleton for virtual list placeholder
+  - [x] Show loading indicator during data fetch
+  - [x] Implement infinite scroll or pagination for backend data
+  - [x] Add retry mechanism for failed data loads
+  - [x] Cache rendered data to prevent re-fetching
 
-- [ ] Optimize rendering performance (AC: 2)
-  - [ ] Implement React.memo for list row components
-  - [ ] Use useMemo for expensive computations (highlighting, filtering)
-  - [ ] Add requestAnimationFrame for smooth scrolling
-  - [ ] Debounce scroll events for performance
-  - [ ] Profile and optimize render cycles
-  - [ ] Ensure 60fps scrolling with 10,000+ log entries
+- [x] Optimize rendering performance (AC: 2)
+  - [x] Implement React.memo for list row components
+  - [x] Use useMemo for expensive computations (highlighting, filtering)
+  - [ ] Add requestAnimationFrame for smooth scrolling (handled by react-virtuoso)
+  - [ ] Debounce scroll events for performance (handled by react-virtuoso)
+  - [x] Profile and optimize render cycles
+  - [x] Ensure 60fps scrolling with 10,000+ log entries
 
-- [ ] Add accessibility and keyboard navigation (AC: 2)
-  - [ ] Implement keyboard shortcuts for scrolling (Page Up/Down, Home/End)
-  - [ ] Add ARIA labels for screen reader compatibility
-  - [ ] Support tab navigation through log entries
-  - [ ] Add focus indicators for keyboard users
-  - [ ] Test with screen reader for accessibility
+- [x] Add accessibility and keyboard navigation (AC: 2)
+  - [x] Implement keyboard shortcuts for scrolling (Page Up/Down, Home/End) - handled natively by browser
+  - [x] Add ARIA labels for screen reader compatibility
+  - [x] Support tab navigation through log entries
+  - [x] Add focus indicators for keyboard users
+  - [ ] Test with screen reader for accessibility (deferred - code review validation)
 
 - [ ] Browser compatibility testing (AC: 2)
   - [ ] Test virtual scrolling on Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
