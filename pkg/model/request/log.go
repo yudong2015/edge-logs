@@ -69,6 +69,9 @@ type LogQueryRequest struct {
 	ContentRelevance  *bool  `json:"content_relevance,omitempty"`   // Enable relevance scoring
 	ContentOperator   string `json:"content_operator,omitempty"`    // Default boolean operator (AND/OR)
 
+	// K8s metadata enrichment
+	EnrichMetadata *bool `json:"enrich_metadata,omitempty"` // Enable K8s metadata enrichment
+
 	// Internal fields for parsed filters (not exposed in JSON)
 	K8sFilters            []K8sFilter                    `json:"-"` // Parsed K8s filter conditions
 	ParsedContentSearch   *ParsedContentSearchExpression `json:"-"` // Parsed content search expression

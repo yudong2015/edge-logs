@@ -12,6 +12,7 @@ import (
 	"github.com/outpostos/edge-logs/pkg/model/request"
 	"github.com/outpostos/edge-logs/pkg/model/response"
 	clickhouseRepo "github.com/outpostos/edge-logs/pkg/repository/clickhouse"
+	"github.com/outpostos/edge-logs/pkg/service/enrichment"
 )
 
 // Service provides log query business logic with comprehensive validation and transformation
@@ -21,18 +22,28 @@ type Service struct {
 	timeValidator        *TimeRangeValidator
 	k8sValidator         *K8sResourceValidator
 	contentSearchValidator *ContentSearchValidator
+	enrichmentService    *enrichment.MetadataEnrichmentService
 }
 
 // NewService creates a new query service with repository dependency
-func NewService(repo clickhouseRepo.Repository) *Service {
+func NewService(repo clickhouseRepo.Repository, enrichmentService *enrichment.MetadataEnrichmentService) *Service {
 	klog.InfoS("初始化日志查询服务")
-	return &Service{
+	service := &Service{
 		repo:                   repo,
 		datasetValidator:      NewDatasetValidator(),
 		timeValidator:         NewTimeRangeValidator(),
 		k8sValidator:          NewK8sResourceValidator(),
 		contentSearchValidator: NewContentSearchValidator(),
+		enrichmentService:     enrichmentService,
 	}
+
+	if enrichmentService != nil {
+		klog.InfoS("K8s元数据增强服务已启用")
+	} else {
+		klog.InfoS("K8s元数据增强服务未启用")
+	}
+
+	return service
 }
 
 // QueryLogs queries logs with comprehensive business logic, validation, and transformation
@@ -71,7 +82,7 @@ func (s *Service) QueryLogs(ctx context.Context, req *request.LogQueryRequest) (
 	}
 
 	// Step 4: Transform and enrich query results
-	responseLogs, err := s.transformLogsToResponse(logs)
+	responseLogs, enrichmentMetadata, err := s.transformAndEnrichLogs(ctx, logs, req)
 	if err != nil {
 		klog.ErrorS(err, "日志转换失败",
 			"dataset", req.Dataset,
@@ -86,6 +97,11 @@ func (s *Service) QueryLogs(ctx context.Context, req *request.LogQueryRequest) (
 		Page:       req.Page,
 		PageSize:   req.PageSize,
 		HasMore:    len(responseLogs) == req.PageSize && (req.Page*req.PageSize+len(responseLogs)) < total,
+	}
+
+	// Add enrichment metadata if enrichment was performed
+	if enrichmentMetadata != nil {
+		response.Enrichment = enrichmentMetadata
 	}
 
 	duration := time.Since(startTime)
@@ -245,30 +261,63 @@ func (s *Service) preprocessQueryRequest(req *request.LogQueryRequest) error {
 	return nil
 }
 
-// transformLogsToResponse converts repository logs to response format with enrichment
-func (s *Service) transformLogsToResponse(logs []clickhouse.LogEntry) ([]response.LogEntry, error) {
+// transformAndEnrichLogs converts repository logs to response format with optional K8s enrichment
+func (s *Service) transformAndEnrichLogs(ctx context.Context, logs []clickhouse.LogEntry, req *request.LogQueryRequest) ([]response.LogEntry, *response.EnrichmentMetadata, error) {
 	responseLogs := make([]response.LogEntry, 0, len(logs))
+	var enrichmentMetadata *response.EnrichmentMetadata
+	var enrichmentResult *enrichment.EnrichmentResult
 
-	for _, log := range logs {
-		// Generate unique ID for log entry
-		logID := generateLogID(log.Dataset, log.Timestamp, log.HostIP)
+	// Check if enrichment is enabled
+	enrichmentEnabled := req.EnrichMetadata != nil && *req.EnrichMetadata
 
-		// Map clickhouse fields to response fields
-		responseLog := response.LogEntry{
-			ID:        logID,
-			Timestamp: log.Timestamp,
-			Message:   log.Content,
-			Level:     log.Severity,
-			Namespace: log.K8sNamespace,
-			Pod:       log.K8sPodName,
-			Container: log.ContainerName,
-			Labels:    enrichLabels(log.Tags, log),
+	if enrichmentEnabled && s.enrichmentService != nil {
+		// Collect unique pod UIDs for enrichment
+		podUIDs := s.collectPodUIDs(logs)
+
+		// Perform enrichment
+		if len(podUIDs) > 0 {
+			enrichmentResult = s.enrichmentService.EnrichLogs(ctx, podUIDs)
+
+			// Build enrichment metadata
+			enrichmentMetadata = &response.EnrichmentMetadata{
+				Enabled:        true,
+				PodsEnriched:   len(enrichmentResult.Metadata),
+				CacheHits:      enrichmentResult.CacheHits,
+				APICalls:       enrichmentResult.APICalls,
+				FailedPods:     len(enrichmentResult.FailedPodUIDs),
+				EnrichmentTime: float64(enrichmentResult.Duration.Milliseconds()),
+			}
+
+			klog.V(4).InfoS("K8s元数据增强完成",
+				"pods_enriched", enrichmentMetadata.PodsEnriched,
+				"cache_hits", enrichmentMetadata.CacheHits,
+				"api_calls", enrichmentMetadata.APICalls,
+				"failed_pods", enrichmentMetadata.FailedPods,
+				"duration_ms", enrichmentMetadata.EnrichmentTime)
 		}
 
-		responseLogs = append(responseLogs, responseLog)
+		// Transform logs with enrichment
+		for _, log := range logs {
+			responseLog := s.transformLogToResponse(log)
+
+			// Apply enrichment if available
+			if enrichmentResult != nil && log.K8sPodUID != "" {
+				if podMetadata, exists := enrichmentResult.Metadata[log.K8sPodUID]; exists {
+					s.applyEnrichment(&responseLog, podMetadata)
+				}
+			}
+
+			responseLogs = append(responseLogs, responseLog)
+		}
+	} else {
+		// Transform logs without enrichment
+		for _, log := range logs {
+			responseLog := s.transformLogToResponse(log)
+			responseLogs = append(responseLogs, responseLog)
+		}
 	}
 
-	return responseLogs, nil
+	return responseLogs, enrichmentMetadata, nil
 }
 
 // Helper functions
@@ -339,6 +388,73 @@ func enrichLabels(originalTags map[string]string, log clickhouse.LogEntry) map[s
 	}
 
 	return labels
+}
+
+// collectPodUIDs collects unique pod UIDs from log entries
+func (s *Service) collectPodUIDs(logs []clickhouse.LogEntry) []string {
+	seen := make(map[string]bool)
+	var podUIDs []string
+
+	for _, log := range logs {
+		if log.K8sPodUID != "" && !seen[log.K8sPodUID] {
+			seen[log.K8sPodUID] = true
+			podUIDs = append(podUIDs, log.K8sPodUID)
+		}
+	}
+
+	return podUIDs
+}
+
+// transformLogToResponse converts a single log entry to response format
+func (s *Service) transformLogToResponse(log clickhouse.LogEntry) response.LogEntry {
+	logID := generateLogID(log.Dataset, log.Timestamp, log.HostIP)
+
+	return response.LogEntry{
+		ID:        logID,
+		Timestamp: log.Timestamp,
+		Message:   log.Content,
+		Level:     log.Severity,
+		Namespace: log.K8sNamespace,
+		Pod:       log.K8sPodName,
+		Container: log.ContainerName,
+		Labels:    enrichLabels(log.Tags, log),
+	}
+}
+
+// applyEnrichment applies K8s metadata enrichment to a log entry
+func (s *Service) applyEnrichment(responseLog *response.LogEntry, podMetadata *enrichment.PodMetadata) {
+	// Apply basic pod metadata
+	responseLog.PodUID = podMetadata.UID
+	responseLog.NodeName = podMetadata.NodeName
+	responseLog.PodIP = podMetadata.PodIP
+	responseLog.HostIP = podMetadata.HostIP
+	responseLog.PodPhase = string(podMetadata.Phase)
+
+	// Apply labels if available
+	if len(podMetadata.Labels) > 0 {
+		responseLog.PodLabels = make(map[string]string)
+		for k, v := range podMetadata.Labels {
+			responseLog.PodLabels[k] = v
+		}
+	}
+
+	// Apply annotations if available
+	if len(podMetadata.Annotations) > 0 {
+		responseLog.PodAnnotations = make(map[string]string)
+		for k, v := range podMetadata.Annotations {
+			responseLog.PodAnnotations[k] = v
+		}
+	}
+
+	// Add pod metadata to existing labels
+	if responseLog.Labels == nil {
+		responseLog.Labels = make(map[string]string)
+	}
+
+	// Add enrichments to labels for backward compatibility
+	for k, v := range podMetadata.Labels {
+		responseLog.Labels["pod_label_"+k] = v
+	}
 }
 
 // QueryLogsByDataset queries logs with strict dataset scoping and existence validation

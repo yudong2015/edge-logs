@@ -13,6 +13,15 @@ type LogEntry struct {
 	Container string            `json:"container"`
 	Labels    map[string]string `json:"labels"`
 
+	// K8s metadata enrichment fields
+	PodUID         string            `json:"pod_uid,omitempty"`         // K8s Pod UID
+	NodeName       string            `json:"node_name,omitempty"`       // K8s Node name
+	PodIP          string            `json:"pod_ip,omitempty"`          // Pod IP address
+	HostIP         string            `json:"host_ip,omitempty"`         // Host IP address
+	PodLabels      map[string]string `json:"pod_labels,omitempty"`      // K8s Pod labels
+	PodAnnotations map[string]string `json:"pod_annotations,omitempty"` // K8s Pod annotations
+	PodPhase       string            `json:"pod_phase,omitempty"`       // Pod phase (Running, Pending, etc.)
+
 	// Content search enhancement fields
 	HighlightedContent     []string `json:"highlighted_content,omitempty"`     // Search result highlighting
 	SearchRelevanceScore   float64  `json:"search_relevance_score,omitempty"`  // Relevance scoring
@@ -30,6 +39,7 @@ type LogQueryResponse struct {
 	Query      *QuerySummary    `json:"query,omitempty"`             // Query parameters summary
 	Metadata   *DatasetMetadata `json:"metadata,omitempty"`          // Dataset metadata
 	SearchMeta *SearchMetadata  `json:"search_metadata,omitempty"`   // Content search metadata
+	Enrichment *EnrichmentMetadata `json:"enrichment_metadata,omitempty"` // K8s enrichment metadata
 }
 
 // QuerySummary provides a sanitized summary of the query parameters
@@ -68,4 +78,14 @@ type SearchMetadata struct {
 	RelevanceScoring   bool    `json:"relevance_scoring"`
 	SearchType         string  `json:"search_type"`         // exact, wildcard, regex, boolean, etc.
 	OptimizationUsed   string  `json:"optimization_used"`   // tokenbf_v1, none, etc.
+}
+
+// EnrichmentMetadata contains metadata about K8s enrichment results
+type EnrichmentMetadata struct {
+	Enabled        bool          `json:"enabled"`                   // Whether enrichment was enabled
+	PodsEnriched   int           `json:"pods_enriched,omitempty"`   // Number of pods enriched
+	CacheHits      int           `json:"cache_hits,omitempty"`      // Number of cache hits
+	APICalls       int           `json:"api_calls,omitempty"`       // Number of K8s API calls
+	FailedPods     int           `json:"failed_pods,omitempty"`     // Number of failed enrichments
+	EnrichmentTime float64       `json:"enrichment_time_ms"`        // Time spent on enrichment (ms)
 }

@@ -74,6 +74,7 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Param(ws.QueryParameter("page_size", "每页大小").DataType("integer")).
 		Param(ws.QueryParameter("order_by", "排序字段 (timestamp, severity)").DataType("string")).
 		Param(ws.QueryParameter("direction", "排序方向 (asc, desc)").DataType("string")).
+		Param(ws.QueryParameter("enrich_metadata", "启用K8s元数据增强 (true/false)").DataType("boolean")).
 		Returns(http.StatusOK, "查询成功", response.LogQueryResponse{}).
 		Returns(http.StatusBadRequest, "请求参数错误", responseWrapper.ErrorResponse{}).
 		Returns(http.StatusNotFound, "数据集不存在", responseWrapper.ErrorResponse{}).
@@ -242,6 +243,19 @@ func (h *LogHandler) parseQueryRequest(req *restful.Request, dataset string) (*r
 			return nil, fmt.Errorf("content_relevance 参数错误: %w", err)
 		}
 		queryReq.ContentRelevance = &relevance
+	}
+
+	// Parse K8s metadata enrichment parameter
+	if enrichStr := req.QueryParameter("enrich_metadata"); enrichStr != "" {
+		enrich, err := strconv.ParseBool(enrichStr)
+		if err != nil {
+			return nil, fmt.Errorf("enrich_metadata 参数错误: %w", err)
+		}
+		queryReq.EnrichMetadata = &enrich
+
+		klog.V(4).InfoS("K8s元数据增强已启用",
+			"dataset", dataset,
+			"enrich_metadata", enrich)
 	}
 
 	// Parse K8s parameters with enhanced pattern support

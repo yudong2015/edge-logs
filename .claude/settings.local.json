@@ -8,7 +8,13 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(go test:*)",
-      "Skill(bmad:bmm:workflows:create-story)"
+      "Skill(bmad:bmm:workflows:create-story)",
+      "Skill(bmad:bmm:workflows:dev-story)",
+      "Bash(go get:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(GOPROXY=http://192.168.1.5:7890,https://goproxy.cn,direct go mod tidy:*)",
+      "Bash(GOPROXY=https://goproxy.cn,direct go mod tidy:*)",
+      "Bash(GOPROXY=https://goproxy.io,direct go mod tidy:*)"
     ]
   }
 }

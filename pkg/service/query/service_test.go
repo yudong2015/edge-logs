@@ -89,7 +89,7 @@ func (m *MockRepository) QueryAggregation(ctx context.Context, req *request.Aggr
 // Test NewService
 func TestNewService(t *testing.T) {
 	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, nil)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockRepo, service.repo)
@@ -98,7 +98,7 @@ func TestNewService(t *testing.T) {
 // Test QueryLogs - basic successful query
 func TestQueryLogs_BasicQuery(t *testing.T) {
 	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, nil)
 
 	now := time.Now()
 	startTime := now.Add(-24 * time.Hour)
@@ -143,7 +143,7 @@ func TestQueryLogs_BasicQuery(t *testing.T) {
 // Test QueryLogs - validation errors
 func TestQueryLogs_ValidationError(t *testing.T) {
 	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, nil)
 
 	tests := []struct {
 		name    string
@@ -227,7 +227,7 @@ func TestQueryLogs_ValidationError(t *testing.T) {
 // Test QueryLogs - repository errors
 func TestQueryLogs_RepositoryError(t *testing.T) {
 	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, nil)
 
 	req := &request.LogQueryRequest{
 		Dataset:  "test-dataset",
@@ -249,7 +249,7 @@ func TestQueryLogs_RepositoryError(t *testing.T) {
 // Test QueryLogs - default time range
 func TestQueryLogs_DefaultTimeRange(t *testing.T) {
 	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, nil)
 
 	req := &request.LogQueryRequest{
 		Dataset:  "test-dataset",
@@ -277,7 +277,7 @@ func TestQueryLogs_DefaultTimeRange(t *testing.T) {
 // Test QueryLogs - pagination and hasMore calculation
 func TestQueryLogs_PaginationAndHasMore(t *testing.T) {
 	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, nil)
 
 	now := time.Now()
 
