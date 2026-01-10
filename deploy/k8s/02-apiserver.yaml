@@ -1,0 +1,148 @@
+# APIServer deployment for edge-logs
+# Provides REST API for log queries
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-logs-apiserver-config
+  namespace: edge-logs
+  labels:
+    app: edge-logs-apiserver
+data:
+  config.yaml: |
+    server:
+      port: 8080
+      host: "0.0.0.0"
+      read_timeout: 30s
+      write_timeout: 30s
+
+    clickhouse:
+      host: "clickhouse.edge-logs.svc.cluster.local"
+      port: 9000
+      database: "edge_logs"
+      username: "default"
+      password: ""
+      tls: false
+
+    kubernetes:
+      in_cluster: true
+      config_path: ""
+
+    logging:
+      level: "info"
+      format: "text"
+      enable_json: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-logs-apiserver
+  namespace: edge-logs
+  labels:
+    app: edge-logs-apiserver
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: edge-logs-apiserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-logs-apiserver
+  namespace: edge-logs
+  labels:
+    app: edge-logs-apiserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-logs-apiserver
+  template:
+    metadata:
+      labels:
+        app: edge-logs-apiserver
+    spec:
+      serviceAccountName: edge-logs-apiserver
+      containers:
+        - name: apiserver
+          image: ghcr.io/outpostos/edge-logs:main
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CONFIG_FILE
+              value: "/config/config.yaml"
+            - name: CLICKHOUSE_HOST
+              value: "clickhouse.edge-logs.svc.cluster.local"
+            - name: CLICKHOUSE_PORT
+              value: "9000"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/v1alpha1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1alpha1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: edge-logs-apiserver-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: edge-logs-apiserver
+  namespace: edge-logs
+  labels:
+    app: edge-logs-apiserver
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: edge-logs-apiserver
+  labels:
+    app: edge-logs-apiserver
+rules:
+  # Read pods, namespaces for metadata enrichment
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  # Read deployments, daemonsets, statefulsets
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: edge-logs-apiserver
+  labels:
+    app: edge-logs-apiserver
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edge-logs-apiserver
+subjects:
+  - kind: ServiceAccount
+    name: edge-logs-apiserver
+    namespace: edge-logs
