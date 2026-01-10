@@ -18,13 +18,14 @@ const { Text } = Typography
 
 interface DatasetNavProps {
   collapsed: boolean
+  onDatasetChange?: (datasetName: string) => void
 }
 
 /**
  * Dataset navigation sidebar component
  * Provides hierarchical dataset selection organized by environment and cluster
  */
-const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed }) => {
+const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed, onDatasetChange }) => {
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -42,7 +43,6 @@ const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed }) => {
       setDatasets(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load datasets')
-      console.error('Error loading datasets:', err)
     } finally {
       setLoading(false)
     }
@@ -80,9 +80,10 @@ const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed }) => {
   )
 
   const handleMenuSelect: MenuProps['onSelect'] = ({ key }) => {
-    setSelectedDataset(key as string)
-    // TODO: Trigger dataset change in parent component
-    console.log('Selected dataset:', key)
+    const datasetName = key as string
+    setSelectedDataset(datasetName)
+    // Notify parent component of dataset change
+    onDatasetChange?.(datasetName)
   }
 
   if (loading) {

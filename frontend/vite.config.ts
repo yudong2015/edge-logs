@@ -27,6 +27,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // Browser compatibility: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+    target: 'es2015',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -36,5 +38,8 @@ export default defineConfig({
       },
     },
     chunkSizeWarningLimit: 1000,
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'antd', 'dayjs'],
   },
 })

@@ -7,6 +7,8 @@ import type { LogQueryParams, LogQueryResponse, ApiError, Dataset } from '@/type
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '10000')
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 1000
 
 /**
  * Custom error class for API errors
@@ -23,45 +25,63 @@ class ApiServiceError extends Error {
 }
 
 /**
+ * Sleep utility for retry delay
+ */
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
  * Log Query Service Class
  */
 export class LogQueryService {
   private baseUrl: string
   private timeout: number
+  private maxRetries: number
 
-  constructor(baseUrl: string = API_BASE_URL, timeout: number = API_TIMEOUT) {
+  constructor(baseUrl: string = API_BASE_URL, timeout: number = API_TIMEOUT, maxRetries: number = MAX_RETRIES) {
     this.baseUrl = baseUrl
     this.timeout = timeout
+    this.maxRetries = maxRetries
   }
 
   /**
-   * Execute log query with the given parameters
+   * Execute log query with the given parameters (with retry logic)
    */
   async queryLogs(params: LogQueryParams): Promise<LogQueryResponse> {
     const url = this.buildQueryUrl(params)
-    return this.fetchWithTimeout<LogQueryResponse>(url, {
+    return this.fetchWithRetry<LogQueryResponse>(url, {
       method: 'GET',
       headers: this.getHeaders(),
     })
   }
 
   /**
-   * Get available datasets
+   * Get available datasets (with retry logic)
    */
   async getDatasets(): Promise<Dataset[]> {
-    const url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets`
-    return this.fetchWithTimeout<Dataset[]>(url, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
+    // Use hardcoded dataset list as fallback since endpoint may not exist
+    const defaultDatasets: Dataset[] = [
+      { name: 'default', description: 'Default dataset', cluster: 'default', environment: 'production' },
+    ]
+
+    try {
+      const url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets`
+      return await this.fetchWithRetry<Dataset[]>(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      })
+    } catch (error) {
+      // Return default datasets if endpoint fails
+      console.warn('Dataset endpoint not available, using default:', error)
+      return defaultDatasets
+    }
   }
 
   /**
-   * Health check for backend availability
+   * Health check for backend availability (with retry logic)
    */
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
     const url = `${this.baseUrl}/healthz`
-    return this.fetchWithTimeout<{ status: string; timestamp: string }>(url, {
+    return this.fetchWithRetry<{ status: string; timestamp: string }>(url, {
       method: 'GET',
       headers: this.getHeaders(),
     })
@@ -97,6 +117,42 @@ export class LogQueryService {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     }
+  }
+
+  /**
+   * Fetch with timeout and retry logic
+   */
+  private async fetchWithRetry<T>(
+    url: string,
+    options: RequestInit
+  ): Promise<T> {
+    let lastError: Error | undefined
+
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await this.fetchWithTimeout<T>(url, options)
+      } catch (error) {
+        lastError = error as Error
+
+        // Don't retry on client errors (4xx) except 408, 429
+        if (error instanceof ApiServiceError) {
+          if (error.statusCode >= 400 && error.statusCode < 500 &&
+              error.statusCode !== 408 && error.statusCode !== 429) {
+            throw error
+          }
+        }
+
+        // Don't retry on the last attempt
+        if (attempt === this.maxRetries) {
+          break
+        }
+
+        // Wait before retry with exponential backoff
+        await sleep(RETRY_DELAY_MS * attempt)
+      }
+    }
+
+    throw lastError || new Error('Max retries exceeded')
   }
 
   /**

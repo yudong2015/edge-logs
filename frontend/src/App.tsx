@@ -10,6 +10,7 @@ import QueryForm from '@/components/query/QueryForm'
 import LogResultsTable from '@/components/results/LogResultsTable'
 import ResultSummary from '@/components/results/ResultSummary'
 import EmptyState from '@/components/results/EmptyState'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { darkTheme } from '@/styles/theme'
 import type { LogQueryParams, LogQueryResponse } from '@/types/api'
 
@@ -28,11 +29,6 @@ function App() {
   const handleQueryResults = (results: LogQueryResponse, _params: LogQueryParams) => {
     setQueryResults(results)
     setHasSearched(true)
-    console.log('Query results received:', {
-      count: results.logs.length,
-      total: results.totalCount,
-      executionTime: results.executionTime,
-    })
   }
 
   /**
@@ -74,17 +70,19 @@ function App() {
   }
 
   return (
-    <ConfigProvider theme={darkTheme}>
-      <AntdApp>
-        <MainLayout>
-          <QueryForm
-            onQueryResults={handleQueryResults}
-            onLoadingChange={handleLoadingChange}
-          />
-          {renderContent()}
-        </MainLayout>
-      </AntdApp>
-    </ConfigProvider>
+    <ErrorBoundary>
+      <ConfigProvider theme={darkTheme}>
+        <AntdApp>
+          <MainLayout>
+            <QueryForm
+              onQueryResults={handleQueryResults}
+              onLoadingChange={handleLoadingChange}
+            />
+            {renderContent()}
+          </MainLayout>
+        </AntdApp>
+      </ConfigProvider>
+    </ErrorBoundary>
   )
 }
 
