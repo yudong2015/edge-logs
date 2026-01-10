@@ -1,6 +1,6 @@
 # Story 4.1: Core Web Interface with Ant Design
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -22,77 +22,77 @@ So that I can query and view logs efficiently using a modern browser-based inter
 
 ## Tasks / Subtasks
 
-- [ ] Set up React project with TypeScript and modern build configuration (AC: 1)
-  - [ ] Initialize React 18+ project with TypeScript support
-  - [ ] Configure Vite for fast development and optimized production builds
-  - [ ] Set up ESLint and Prettier for code quality and formatting
-  - [ ] Configure path aliases for cleaner imports
-  - [ ] Add environment variable configuration for API endpoints
-  - [ ] Set up development and production build scripts
-  - [ ] Configure Hot Module Replacement for development efficiency
+- [x] Set up React project with TypeScript and modern build configuration (AC: 1)
+  - [x] Initialize React 18+ project with TypeScript support
+  - [x] Configure Vite for fast development and optimized production builds
+  - [x] Set up ESLint and Prettier for code quality and formatting
+  - [x] Configure path aliases for cleaner imports
+  - [x] Add environment variable configuration for API endpoints
+  - [x] Set up development and production build scripts
+  - [x] Configure Hot Module Replacement for development efficiency
 
-- [ ] Implement Ant Design v5 integration with dark theme (AC: 1, 2)
-  - [ ] Install and configure Ant Design v5 dependencies
-  - [ ] Set up dark theme configuration using Ant Design theme system
-  - [ ] Configure custom color scheme for professional log analysis
-  - [ ] Implement theme provider for consistent styling across components
-  - [ ] Add responsive breakpoints for desktop and tablet displays
-  - [ ] Configure Ant Design components with dark theme overrides
-  - [ ] Test theme consistency across all supported browsers
+- [x] Implement Ant Design v5 integration with dark theme (AC: 1, 2)
+  - [x] Install and configure Ant Design v5 dependencies
+  - [x] Set up dark theme configuration using Ant Design theme system
+  - [x] Configure custom color scheme for professional log analysis
+  - [x] Implement theme provider for consistent styling across components
+  - [x] Add responsive breakpoints for desktop and tablet displays
+  - [x] Configure Ant Design components with dark theme overrides
+  - [x] Test theme consistency across all supported browsers
 
-- [ ] Create main application layout and navigation structure (AC: 3, 4)
-  - [ ] Design and implement responsive main layout with header, sidebar, and content areas
-  - [ ] Create dataset selector navigation component with hierarchical structure
-  - [ ] Implement responsive sidebar with collapsible functionality
-  - [ ] Add application header with branding and user controls
-  - [ ] Create main content area with proper routing and page structure
-  - [ ] Implement proper responsive behavior for 1920px+ displays
-  - [ ] Add loading states and error boundaries for robust UX
+- [x] Create main application layout and navigation structure (AC: 3, 4)
+  - [x] Design and implement responsive main layout with header, sidebar, and content areas
+  - [x] Create dataset selector navigation component with hierarchical structure
+  - [x] Implement responsive sidebar with collapsible functionality
+  - [x] Add application header with branding and user controls
+  - [x] Create main content area with proper routing and page structure
+  - [x] Implement proper responsive behavior for 1920px+ displays
+  - [x] Add loading states and error boundaries for robust UX
 
-- [ ] Implement log query interface with time range selection (AC: 4, 5)
-  - [ ] Create log query form with dataset selection dropdown
-  - [ ] Implement intuitive date/time picker components for time range selection
-  - [ ] Add quick time range selectors (Last 15min, 1 hour, 6 hours, 24 hours, 7 days)
-  - [ ] Implement namespace and pod filtering input fields
-  - [ ] Add content search field with clear visual feedback
-  - [ ] Create query execution button with loading states
-  - [ ] Add form validation and error handling for user inputs
+- [x] Implement log query interface with time range selection (AC: 4, 5)
+  - [x] Create log query form with dataset selection dropdown
+  - [x] Implement intuitive date/time picker components for time range selection
+  - [x] Add quick time range selectors (Last 15min, 1 hour, 6 hours, 24 hours, 7 days)
+  - [x] Implement namespace and pod filtering input fields
+  - [x] Add content search field with clear visual feedback
+  - [x] Create query execution button with loading states
+  - [x] Add form validation and error handling for user inputs
 
-- [ ] Implement API integration layer for log queries (AC: 1)
-  - [ ] Create TypeScript types matching backend API response structures
-  - [ ] Implement HTTP client using fetch API with proper error handling
-  - [ ] Add request/response interceptors for authentication and logging
-  - [ ] Create API service layer for log query operations
-  - [ ] Implement retry logic for failed API requests
-  - [ ] Add response data transformation and validation
-  - [ ] Create error handling and user feedback mechanisms
+- [x] Implement API integration layer for log queries (AC: 1)
+  - [x] Create TypeScript types matching backend API response structures
+  - [x] Implement HTTP client using fetch API with proper error handling
+  - [x] Add request/response interceptors for authentication and logging
+  - [x] Create API service layer for log query operations
+  - [x] Implement retry logic for failed API requests
+  - [x] Add response data transformation and validation
+  - [x] Create error handling and user feedback mechanisms
 
-- [ ] Create basic log results display component (AC: 1)
-  - [ ] Implement log results table with Ant Design Table component
-  - [ ] Add basic log field display (timestamp, dataset, namespace, pod, content)
-  - [ ] Implement severity level indicators with color coding
-  - [ ] Add result count display and pagination controls
-  - [ ] Create empty state and loading state components
-  - [ ] Implement basic result sorting and filtering capabilities
-  - [ ] Add responsive table behavior for different screen sizes
+- [x] Create basic log results display component (AC: 1)
+  - [x] Implement log results table with Ant Design Table component
+  - [x] Add basic log field display (timestamp, dataset, namespace, pod, content)
+  - [x] Implement severity level indicators with color coding
+  - [x] Add result count display and pagination controls
+  - [x] Create empty state and loading state components
+  - [x] Implement basic result sorting and filtering capabilities
+  - [x] Add responsive table behavior for different screen sizes
 
-- [ ] Set up browser compatibility and testing (AC: 5)
-  - [ ] Configure Vite builds for target browser versions (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
-  - [ ] Add browser compatibility polyfills where needed
-  - [ ] Test application functionality across all supported browsers
-  - [ ] Implement fallbacks for unsupported browser features
-  - [ ] Add browser-specific CSS fixes and optimizations
-  - [ ] Create cross-browser testing checklist
-  - [ ] Document any browser-specific limitations or workarounds
+- [x] Set up browser compatibility and testing (AC: 5)
+  - [x] Configure Vite builds for target browser versions (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
+  - [x] Add browser compatibility polyfills where needed
+  - [x] Test application functionality across all supported browsers
+  - [x] Implement fallbacks for unsupported browser features
+  - [x] Add browser-specific CSS fixes and optimizations
+  - [x] Create cross-browser testing checklist
+  - [x] Document any browser-specific limitations or workarounds
 
-- [ ] Implement deployment configuration (AC: 1)
-  - [ ] Create production-optimized build configuration
-  - [ ] Set up static asset optimization and CDN preparation
-  - [ ] Configure environment-specific API endpoints
-  - [ ] Create Docker container configuration for frontend deployment
-  - [ ] Add health check endpoint for deployment monitoring
-  - [ ] Configure proper cache headers for static assets
-  - [ ] Document deployment process and environment setup
+- [x] Implement deployment configuration (AC: 1)
+  - [x] Create production-optimized build configuration
+  - [x] Set up static asset optimization and CDN preparation
+  - [x] Configure environment-specific API endpoints
+  - [x] Create Docker container configuration for frontend deployment
+  - [x] Add health check endpoint for deployment monitoring
+  - [x] Configure proper cache headers for static assets
+  - [x] Document deployment process and environment setup
 
 ## Dev Notes
 
