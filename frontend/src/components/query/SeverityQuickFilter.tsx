@@ -78,25 +78,26 @@ const SeverityQuickFilter: React.FC<SeverityQuickFilterProps> = ({
   className,
   style,
 }) => {
-  const [selectedSeverity, setSelectedSeverity] = useState<string | undefined>(value)
+  // Use internal state for immediate UI feedback, sync with value prop on changes
+  const [internalValue, setInternalValue] = useState<string | undefined>(value)
 
   /**
    * Handle severity button click
    */
   const handleSeverityClick = useCallback(
     (severity: string) => {
-      const newValue = selectedSeverity === severity ? undefined : severity
-      setSelectedSeverity(newValue)
+      const newValue = internalValue === severity ? undefined : severity
+      setInternalValue(newValue)
       onChange?.(newValue)
     },
-    [selectedSeverity, onChange]
+    [internalValue, onChange]
   )
 
   /**
    * Clear all filters
    */
   const handleClear = useCallback(() => {
-    setSelectedSeverity(undefined)
+    setInternalValue(undefined)
     onChange?.(undefined)
   }, [onChange])
 
@@ -104,10 +105,10 @@ const SeverityQuickFilter: React.FC<SeverityQuickFilterProps> = ({
    * Sync with external value changes
    */
   React.useEffect(() => {
-    setSelectedSeverity(value)
+    setInternalValue(value)
   }, [value])
 
-  const hasSelection = selectedSeverity !== undefined
+  const hasSelection = internalValue !== undefined
 
   return (
     <div className={className} style={style}>
@@ -132,7 +133,7 @@ const SeverityQuickFilter: React.FC<SeverityQuickFilterProps> = ({
           const severity = SEVERITY_LEVELS.find((s) => s.value === severityKey)
           if (!severity) return null
 
-          const isSelected = selectedSeverity === severity.value
+          const isSelected = internalValue === severity.value
 
           return (
             <Tooltip key={severity.value} title={severity.label}>
@@ -166,8 +167,8 @@ const SeverityQuickFilter: React.FC<SeverityQuickFilterProps> = ({
         <div style={{ marginTop: '8px' }}>
           <Text type="secondary" style={{ fontSize: '12px' }}>
             Filtering by:{' '}
-            <Text style={{ color: SEVERITY_LEVELS.find((s) => s.value === selectedSeverity)?.color }}>
-              {SEVERITY_LEVELS.find((s) => s.value === selectedSeverity)?.label}
+            <Text style={{ color: SEVERITY_LEVELS.find((s) => s.value === internalValue)?.color }}>
+              {SEVERITY_LEVELS.find((s) => s.value === internalValue)?.label}
             </Text>
           </Text>
         </div>

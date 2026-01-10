@@ -209,12 +209,3 @@ export function debounce<T extends (...args: any[]) => any>(
   }
 }
 
-/**
- * Debounced suggestion fetcher (300ms delay)
- */
-export const createDebouncedSuggestions = (
-  fetcher: (...args: any[]) => Promise<string[]>,
-  delay: number = 300
-) => {
-  return debounce(fetcher, delay)
-}

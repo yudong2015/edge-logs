@@ -1,6 +1,6 @@
 # Story 4.3: Query Builder and Auto-completion
 
-Status: review
+Status: done
 
 ## Story
 
