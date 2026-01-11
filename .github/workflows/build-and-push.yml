@@ -18,7 +18,7 @@ env:
 jobs:
   build:
     name: Build and Push
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name != 'pull_request'
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
 
   deploy-notification:
     needs: [build]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Notify deployment
