@@ -68,6 +68,9 @@ func New(cfg *config.Config) (*Server, error) {
 		},
 	}
 
+	// Register log routes
+	server.registerLogRoutes()
+
 	return server, nil
 }
 

@@ -69,7 +69,7 @@ spec:
       serviceAccountName: edge-logs-apiserver
       containers:
         - name: apiserver
-          image: ghcr.io/outpostos/edge-logs:main
+          image: ${DOCKER_REGISTRY}/${DOCKER_REPO}:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - name: http

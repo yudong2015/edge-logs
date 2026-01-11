@@ -21,7 +21,11 @@
       "Bash(pnpm add:*)",
       "Bash(git reset:*)",
       "Skill(bmad:bmm:workflows:code-review)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(ssh hw101:*)",
+      "Bash(curl:*)",
+      "Bash(scp:*)",
+      "Bash(git push:*)"
     ]
   }
 }

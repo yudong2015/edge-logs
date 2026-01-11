@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/outpostos/edge-logs-frontend:latest
+          image: ${DOCKER_REGISTRY}/${DOCKER_REPO}-frontend:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - name: http

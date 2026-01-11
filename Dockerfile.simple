@@ -1,0 +1,21 @@
+FROM alpine:latest
+
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+
+# Copy the pre-built binary
+COPY edge-logs-apiserver_unix /edge-logs-apiserver
+
+# Make it executable
+RUN chmod +x /edge-logs-apiserver
+
+# Copy default configuration
+COPY config/config.yaml /config/config.yaml
+
+# Expose port
+EXPOSE 8080
+
+# Run the binary
+CMD ["/edge-logs-apiserver"]

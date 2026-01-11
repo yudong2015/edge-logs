@@ -1,6 +1,13 @@
 # Multi-stage build for optimal image size
 # Stage 1: Build the Go binary
-FROM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+
+# Build arguments
+ARG TARGETOS
+ARG TARGETARCH
+ARG VERSION=dev
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
 
 # Set up build environment
 RUN apk add --no-cache git ca-certificates
@@ -9,14 +16,17 @@ WORKDIR /src
 
 # Copy go mod and sum files for dependency caching
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy source code
 COPY . .
 
 # Build the binary with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags='-w -s -extldflags "-static"' \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+    -ldflags="-w -s -extldflags '-static' -X main.Version=$VERSION -X main.BuildDate=$BUILD_DATE -X main.GitCommit=$GIT_COMMIT -X github.com/outpostos/edge-logs/pkg/apiserver.version=$VERSION" \
     -a -installsuffix cgo \
     -o edge-logs-apiserver \
     ./cmd/apiserver
