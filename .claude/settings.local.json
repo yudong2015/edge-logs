@@ -25,7 +25,19 @@
       "Bash(ssh hw101:*)",
       "Bash(curl:*)",
       "Bash(scp:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(gh run list:*)",
+      "Bash(git fetch:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh variable list:*)",
+      "Bash(gh secret list:*)",
+      "Bash(gh variable set:*)",
+      "Bash(gh secret set:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(gh run rerun:*)",
+      "Bash(gh api:*)",
+      "Bash(gh run cancel:*)"
     ]
   }
 }

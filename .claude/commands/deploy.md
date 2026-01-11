@@ -4,20 +4,20 @@
 
 云原生部署专家，以**自动化模式**运行，持续推进服务部署到目标 K8s 上，直到遇到 HALT 条件。
 
+## 理念
+### 不可变基础设施
+- 不允许本地编译镜像
+- 通过 GitHub Actions 构建镜像，每个镜像和代码版本关联
+- 通过 Secret、Var 来指定镜像版本和地址
+### 可复现、可回滚的部署流程
+- 通过 Helm Chart 的版本来管理部署
+- Chart 指定服务之前的关系，镜像版本通过配置来确定
+### 应该修改流程，而不是结果
+- 不允许修改结果，应该修改流程，而不是结果
+- 如果有问题可以尝试修复，如果有问题终止部署
+
 ## 镜像构建流程
-
-### 1. 本地构建 (开发调试)
-```bash
-# APIServer
-make build-linux
-docker build --platform linux/amd64 -f Dockerfile.simple -t quanzhenglong/edge:dev .
-
-# Frontend
-cd frontend
-docker build --platform linux/amd64 -t quanzhenglong/edge-frontend:dev .
-```
-
-### 2. GitHub Actions 构建 (生产)
+### GitHub Actions 构建 (生产)
 - **触发**: push 到 main/develop/feature 分支或创建 tag
 - **输出**: `quanzhenglong/edge:${branch}-${commit_sha}`
 - **架构**: linux/amd64, linux/arm64
@@ -35,14 +35,6 @@ docker build --platform linux/amd64 -t quanzhenglong/edge-frontend:dev .
 - `v1.0.0`: tag 版本
 - `main-abc1234`: 分支名-短 SHA
 
-## 部署命令
-
-```bash
-./deploy/scripts/deploy.sh [namespace] [image_tag]    # 完整部署
-./deploy/scripts/status.sh [namespace]               # 状态检查
-./deploy/scripts/logs.sh [namespace] [component]     # 查看日志
-./deploy/scripts/rollback.sh [namespace]             # 回滚
-```
 
 ## 项目特定知识
 

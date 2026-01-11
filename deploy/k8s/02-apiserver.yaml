@@ -5,7 +5,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: edge-logs-apiserver-config
-  namespace: edge-logs
+  namespace: ${NAMESPACE}
   labels:
     app: edge-logs-apiserver
 data:
@@ -17,7 +17,7 @@ data:
       write_timeout: 30s
 
     clickhouse:
-      host: "clickhouse.edge-logs.svc.cluster.local"
+      host: "clickhouse.${NAMESPACE}.svc.cluster.local"
       port: 9000
       database: "edge_logs"
       username: "default"
@@ -37,7 +37,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: edge-logs-apiserver
-  namespace: edge-logs
+  namespace: ${NAMESPACE}
   labels:
     app: edge-logs-apiserver
 spec:
@@ -53,7 +53,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: edge-logs-apiserver
-  namespace: edge-logs
+  namespace: ${NAMESPACE}
   labels:
     app: edge-logs-apiserver
 spec:
@@ -78,7 +78,7 @@ spec:
             - name: CONFIG_FILE
               value: "/config/config.yaml"
             - name: CLICKHOUSE_HOST
-              value: "clickhouse.edge-logs.svc.cluster.local"
+              value: "clickhouse.${NAMESPACE}.svc.cluster.local"
             - name: CLICKHOUSE_PORT
               value: "9000"
           volumeMounts:
@@ -112,7 +112,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: edge-logs-apiserver
-  namespace: edge-logs
+  namespace: ${NAMESPACE}
   labels:
     app: edge-logs-apiserver
 ---
@@ -145,4 +145,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: edge-logs-apiserver
-    namespace: edge-logs
+    namespace: ${NAMESPACE}

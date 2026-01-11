@@ -1,0 +1,30 @@
+apiVersion: v2
+name: edge-logs
+description: A Helm chart for Edge Logs - High-performance log aggregation system for Kubernetes edge environments
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+version: 0.1.0
+
+# This is the version number of the application being deployed.
+appVersion: "v0.1.0"
+
+keywords:
+  - logs
+  - kubernetes
+  - edge
+  - clickhouse
+  - monitoring
+
+home: https://github.com/outpostos/edge-logs
+
+sources:
+  - https://github.com/outpostos/edge-logs
+
+maintainers:
+  - name: edge-logs-team
+    email: team@outpostos.io
+
+annotations:
+  category: Monitoring
