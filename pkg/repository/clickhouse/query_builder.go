@@ -28,7 +28,7 @@ func NewQueryBuilder() *QueryBuilder {
 	}
 }
 
-// BuildLogQuery constructs a log query leveraging Story 1-2 optimizations
+// BuildLogQuery constructs a log query for OTEL standard table (ADR-001)
 func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建日志查询",
 		"dataset", req.Dataset,
@@ -39,69 +39,71 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 
 	qb.dataset = req.Dataset
 
-	// 1. Base query leveraging partition pruning
+	// 1. Base query for OTEL logs table
 	qb.baseQuery.WriteString(`
 		SELECT
-			timestamp, dataset, content, severity,
-			container_id, container_name, pid,
-			host_ip, host_name,
-			k8s_namespace_name, k8s_pod_name, k8s_pod_uid, k8s_node_name,
-			tags
-		FROM logs
+			Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+			SeverityText, SeverityNumber, ServiceName, Body,
+			ResourceSchemaUrl, ResourceAttributes,
+			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
+			LogAttributes
+		FROM otel_logs
 	`)
 
-	// 2. Dataset filtering (REQUIRED for partition pruning)
-	qb.AddCondition("dataset = ?", req.Dataset)
+	// 2. Service name filtering (replaces dataset, for partition pruning)
+	if req.Dataset != "" {
+		qb.AddCondition("ServiceName = ?", req.Dataset)
+	}
 
 	// 3. Time range filtering (leveraging ORDER BY optimization)
 	if req.StartTime != nil {
-		qb.AddCondition("timestamp >= ?", *req.StartTime)
+		qb.AddCondition("Timestamp >= ?", *req.StartTime)
 	}
 	if req.EndTime != nil {
-		qb.AddCondition("timestamp <= ?", *req.EndTime)
+		qb.AddCondition("Timestamp <= ?", *req.EndTime)
 	}
 
-	// 4. K8s metadata filtering (LowCardinality optimization)
+	// 4. K8s metadata filtering (from LogAttributes map)
 	if req.Namespace != "" {
-		qb.AddCondition("k8s_namespace_name = ?", req.Namespace)
+		qb.AddCondition("LogAttributes['k8s.namespace.name'] = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		qb.AddCondition("k8s_pod_name = ?", req.PodName)
+		qb.AddCondition("LogAttributes['k8s.pod.name'] = ?", req.PodName)
 	}
 	if req.NodeName != "" {
-		qb.AddCondition("k8s_node_name = ?", req.NodeName)
+		qb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
 	}
 
-	// 5. Host filtering
+	// 5. Host filtering (from ResourceAttributes map)
 	if req.HostIP != "" {
-		qb.AddCondition("host_ip = ?", req.HostIP)
+		qb.AddCondition("ResourceAttributes['host.ip'] = ?", req.HostIP)
 	}
 	if req.HostName != "" {
-		qb.AddCondition("host_name = ?", req.HostName)
+		qb.AddCondition("ResourceAttributes['host.name'] = ?", req.HostName)
 	}
 
-	// 6. Container filtering
+	// 6. Container filtering (from LogAttributes map)
 	if req.ContainerName != "" {
-		qb.AddCondition("container_name = ?", req.ContainerName)
+		qb.AddCondition("LogAttributes['k8s.container.name'] = ?", req.ContainerName)
 	}
 
 	// 7. Severity filtering
 	if req.Severity != "" {
-		qb.AddCondition("severity = ?", req.Severity)
+		qb.AddCondition("SeverityText = ?", req.Severity)
 	}
 
 	// 8. Full-text search (tokenbf_v1 index utilization)
 	if req.Filter != "" {
-		qb.AddCondition("hasToken(content, ?)", req.Filter)
+		qb.AddCondition("hasToken(Body, ?)", req.Filter)
 	}
 
-	// 9. Tag filtering (bloom filter index)
+	// 9. Tag filtering (from LogAttributes map with bloom filter index)
 	for key, value := range req.Tags {
-		qb.AddCondition("tags[?] = ?", key, value)
+		qb.AddCondition("LogAttributes[?] = ?", key, value)
 	}
 
 	// 10. ORDER BY to match primary key for optimal performance
-	qb.SetOrderBy(fmt.Sprintf("dataset, host_ip, timestamp %s", strings.ToUpper(req.Direction)))
+	qb.SetOrderBy(fmt.Sprintf("ServiceName, TimestampTime, Timestamp %s", strings.ToUpper(req.Direction)))
 
 	// 11. Pagination
 	if req.PageSize > 0 {
@@ -122,56 +124,58 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 	return query, args, nil
 }
 
-// BuildCountQuery constructs a count query for pagination
+// BuildCountQuery constructs a count query for pagination (OTEL table)
 func (qb *QueryBuilder) BuildCountQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建计数查询", "dataset", req.Dataset)
 
 	qb.dataset = req.Dataset
 
-	// Base count query with same filters as main query
-	qb.baseQuery.WriteString("SELECT count(*) FROM logs")
+	// Base count query for OTEL logs table
+	qb.baseQuery.WriteString("SELECT count(*) FROM otel_logs")
 
 	// Apply same filtering conditions as main query (excluding ORDER BY and LIMIT)
-	qb.AddCondition("dataset = ?", req.Dataset)
+	if req.Dataset != "" {
+		qb.AddCondition("ServiceName = ?", req.Dataset)
+	}
 
 	if req.StartTime != nil {
-		qb.AddCondition("timestamp >= ?", *req.StartTime)
+		qb.AddCondition("Timestamp >= ?", *req.StartTime)
 	}
 	if req.EndTime != nil {
-		qb.AddCondition("timestamp <= ?", *req.EndTime)
+		qb.AddCondition("Timestamp <= ?", *req.EndTime)
 	}
 
 	if req.Namespace != "" {
-		qb.AddCondition("k8s_namespace_name = ?", req.Namespace)
+		qb.AddCondition("LogAttributes['k8s.namespace.name'] = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		qb.AddCondition("k8s_pod_name = ?", req.PodName)
+		qb.AddCondition("LogAttributes['k8s.pod.name'] = ?", req.PodName)
 	}
 	if req.NodeName != "" {
-		qb.AddCondition("k8s_node_name = ?", req.NodeName)
+		qb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
 	}
 
 	if req.HostIP != "" {
-		qb.AddCondition("host_ip = ?", req.HostIP)
+		qb.AddCondition("ResourceAttributes['host.ip'] = ?", req.HostIP)
 	}
 	if req.HostName != "" {
-		qb.AddCondition("host_name = ?", req.HostName)
+		qb.AddCondition("ResourceAttributes['host.name'] = ?", req.HostName)
 	}
 
 	if req.ContainerName != "" {
-		qb.AddCondition("container_name = ?", req.ContainerName)
+		qb.AddCondition("LogAttributes['k8s.container.name'] = ?", req.ContainerName)
 	}
 
 	if req.Severity != "" {
-		qb.AddCondition("severity = ?", req.Severity)
+		qb.AddCondition("SeverityText = ?", req.Severity)
 	}
 
 	if req.Filter != "" {
-		qb.AddCondition("hasToken(content, ?)", req.Filter)
+		qb.AddCondition("hasToken(Body, ?)", req.Filter)
 	}
 
 	for key, value := range req.Tags {
-		qb.AddCondition("tags[?] = ?", key, value)
+		qb.AddCondition("LogAttributes[?] = ?", key, value)
 	}
 
 	query, args := qb.Build()
@@ -181,20 +185,11 @@ func (qb *QueryBuilder) BuildCountQuery(req *request.LogQueryRequest) (string, [
 	return query, args, nil
 }
 
-// BuildInsertQuery constructs an insert query with batch optimization
+// BuildInsertQuery is deprecated - OTEL Collector handles log insertion
+// This method is kept for backward compatibility but should not be used
 func (qb *QueryBuilder) BuildInsertQuery() (string, error) {
-	query := `
-		INSERT INTO logs (
-			timestamp, dataset, content, severity,
-			container_id, container_name, pid,
-			host_ip, host_name,
-			k8s_namespace_name, k8s_pod_name, k8s_pod_uid, k8s_node_name,
-			tags
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	klog.V(4).InfoS("插入查询已构建")
-	return strings.TrimSpace(query), nil
+	klog.InfoS("警告: BuildInsertQuery 已废弃，日志写入由 OTEL Collector 处理")
+	return "", fmt.Errorf("BuildInsertQuery is deprecated, use OTEL Collector for log ingestion")
 }
 
 // AddCondition adds a WHERE condition with parameters
@@ -270,9 +265,9 @@ func (qb *QueryBuilder) Reset() {
 
 // ValidateQuery performs basic query validation
 func (qb *QueryBuilder) ValidateQuery(req *request.LogQueryRequest) error {
-	// Validate dataset is not empty (required for partition pruning)
+	// Dataset (ServiceName) is optional in OTEL schema, but recommended for partition pruning
 	if req.Dataset == "" {
-		return NewValidationError("query_validation", "dataset is required for data isolation")
+		klog.InfoS("查询未指定 dataset/ServiceName，可能影响查询性能")
 	}
 
 	// Validate time range is reasonable (prevent excessive scans)

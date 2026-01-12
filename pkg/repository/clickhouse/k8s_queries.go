@@ -24,7 +24,7 @@ func NewK8sQueryBuilder() *K8sQueryBuilder {
 	}
 }
 
-// BuildK8sOptimizedQuery builds queries optimized for K8s metadata filtering with ClickHouse LowCardinality columns
+// BuildK8sOptimizedQuery builds queries optimized for K8s metadata filtering (OTEL format)
 func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建K8s元数据优化查询",
 		"dataset", req.Dataset,
@@ -33,45 +33,38 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 
 	kqb.dataset = req.Dataset
 
-	// Build base query with K8s metadata field selection
+	// Build base query with OTEL table field selection
 	kqb.baseQuery.WriteString(`
 		SELECT
-			timestamp,
-			dataset,
-			content,
-			severity,
-			container_id,
-			container_name,
-			pid,
-			host_ip,
-			host_name,
-			k8s_namespace_name,
-			k8s_pod_name,
-			k8s_pod_uid,
-			k8s_node_name,
-			tags
-		FROM logs
+			Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+			SeverityText, SeverityNumber, ServiceName, Body,
+			ResourceSchemaUrl, ResourceAttributes,
+			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
+			LogAttributes
+		FROM otel_logs
 	`)
 
 	// Build comprehensive WHERE conditions with proper precedence
 	var whereConditions []string
 	var args []interface{}
 
-	// 1. Dataset filter (mandatory for data isolation)
-	whereConditions = append(whereConditions, "dataset = ?")
-	args = append(args, req.Dataset)
+	// 1. ServiceName filter (replaces dataset, for partition pruning)
+	if req.Dataset != "" {
+		whereConditions = append(whereConditions, "ServiceName = ?")
+		args = append(args, req.Dataset)
+	}
 
 	// 2. Time range filters (optimized for DateTime64(9))
 	if req.StartTime != nil {
-		whereConditions = append(whereConditions, "timestamp >= ?")
+		whereConditions = append(whereConditions, "Timestamp >= ?")
 		args = append(args, *req.StartTime)
 	}
 	if req.EndTime != nil {
-		whereConditions = append(whereConditions, "timestamp <= ?")
+		whereConditions = append(whereConditions, "Timestamp <= ?")
 		args = append(args, *req.EndTime)
 	}
 
-	// 3. K8s metadata filters (leveraging LowCardinality optimization)
+	// 3. K8s metadata filters (from LogAttributes map)
 	if len(req.K8sFilters) > 0 {
 		kqb.k8sFilterBuilder.SetFilters(req.K8sFilters)
 		k8sConditions, k8sArgs, err := kqb.k8sFilterBuilder.BuildK8sFilterConditions()
@@ -84,22 +77,22 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 
 	// 4. Additional content and metadata filters
 	if req.Filter != "" {
-		whereConditions = append(whereConditions, "positionCaseInsensitive(content, ?) > 0")
+		whereConditions = append(whereConditions, "positionCaseInsensitive(Body, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
 	if req.Severity != "" {
-		whereConditions = append(whereConditions, "severity = ?")
+		whereConditions = append(whereConditions, "SeverityText = ?")
 		args = append(args, req.Severity)
 	}
 
 	if req.NodeName != "" {
-		whereConditions = append(whereConditions, "k8s_node_name = ?")
+		whereConditions = append(whereConditions, "LogAttributes['k8s.node.name'] = ?")
 		args = append(args, req.NodeName)
 	}
 
 	if req.ContainerName != "" {
-		whereConditions = append(whereConditions, "container_name = ?")
+		whereConditions = append(whereConditions, "LogAttributes['k8s.container.name'] = ?")
 		args = append(args, req.ContainerName)
 	}
 
@@ -107,7 +100,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	whereClause := strings.Join(whereConditions, " AND ")
 	query := fmt.Sprintf(`%s
 		WHERE %s
-		ORDER BY timestamp DESC, k8s_namespace_name ASC, k8s_pod_name ASC
+		ORDER BY Timestamp DESC, LogAttributes['k8s.namespace.name'] ASC, LogAttributes['k8s.pod.name'] ASC
 		LIMIT %d OFFSET %d`,
 		kqb.baseQuery.String(),
 		whereClause,
@@ -123,24 +116,26 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	return query, args, nil
 }
 
-// BuildK8sCountQuery builds count queries optimized for K8s metadata filtering
+// BuildK8sCountQuery builds count queries optimized for K8s metadata filtering (OTEL format)
 func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建K8s元数据计数查询", "dataset", req.Dataset)
 
 	var whereConditions []string
 	var args []interface{}
 
-	// Dataset filter (mandatory)
-	whereConditions = append(whereConditions, "dataset = ?")
-	args = append(args, req.Dataset)
+	// ServiceName filter (replaces dataset)
+	if req.Dataset != "" {
+		whereConditions = append(whereConditions, "ServiceName = ?")
+		args = append(args, req.Dataset)
+	}
 
 	// Time range filters
 	if req.StartTime != nil {
-		whereConditions = append(whereConditions, "timestamp >= ?")
+		whereConditions = append(whereConditions, "Timestamp >= ?")
 		args = append(args, *req.StartTime)
 	}
 	if req.EndTime != nil {
-		whereConditions = append(whereConditions, "timestamp <= ?")
+		whereConditions = append(whereConditions, "Timestamp <= ?")
 		args = append(args, *req.EndTime)
 	}
 
@@ -157,28 +152,28 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 
 	// Additional filters
 	if req.Filter != "" {
-		whereConditions = append(whereConditions, "positionCaseInsensitive(content, ?) > 0")
+		whereConditions = append(whereConditions, "positionCaseInsensitive(Body, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
 	if req.Severity != "" {
-		whereConditions = append(whereConditions, "severity = ?")
+		whereConditions = append(whereConditions, "SeverityText = ?")
 		args = append(args, req.Severity)
 	}
 
 	if req.NodeName != "" {
-		whereConditions = append(whereConditions, "k8s_node_name = ?")
+		whereConditions = append(whereConditions, "LogAttributes['k8s.node.name'] = ?")
 		args = append(args, req.NodeName)
 	}
 
 	if req.ContainerName != "" {
-		whereConditions = append(whereConditions, "container_name = ?")
+		whereConditions = append(whereConditions, "LogAttributes['k8s.container.name'] = ?")
 		args = append(args, req.ContainerName)
 	}
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs
+		FROM otel_logs
 		WHERE %s`,
 		strings.Join(whereConditions, " AND "))
 

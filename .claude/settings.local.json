@@ -37,7 +37,18 @@
       "Bash(gh workflow run:*)",
       "Bash(gh run rerun:*)",
       "Bash(gh api:*)",
-      "Bash(gh run cancel:*)"
+      "Bash(gh run cancel:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(jq:*)",
+      "Bash(docker pull:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(docker tag:*)",
+      "Bash(docker login:*)",
+      "Bash(docker push:*)",
+      "Bash(docker image inspect:*)",
+      "Bash(skopeo copy:*)",
+      "Read(//Users/neov/src/github.com/CloudDetail/apo/**)",
+      "Bash(find:*)"
     ]
   }
 }

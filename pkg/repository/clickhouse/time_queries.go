@@ -22,7 +22,7 @@ func NewTimeQueryBuilder() *TimeQueryBuilder {
 	}
 }
 
-// BuildOptimizedTimeRangeQuery builds time-range queries optimized for ClickHouse DateTime64(9)
+// BuildOptimizedTimeRangeQuery builds time-range queries optimized for ClickHouse DateTime64(9) (OTEL format)
 func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建时间范围优化查询",
 		"dataset", req.Dataset,
@@ -32,24 +32,21 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 
 	tqb.dataset = req.Dataset
 
-	// Build base query with time-optimized field selection
+	// Build base query with OTEL table field selection
 	tqb.baseQuery.WriteString(`
 		SELECT
-			timestamp,
-			content,
-			severity,
-			k8s_namespace_name,
-			k8s_pod_name,
-			k8s_node_name,
-			host_ip,
-			host_name,
-			container_name,
-			container_id
-		FROM logs
+			Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+			SeverityText, SeverityNumber, ServiceName, Body,
+			ResourceSchemaUrl, ResourceAttributes,
+			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
+			LogAttributes
+		FROM otel_logs
 	`)
 
-	// 1. Dataset filtering MUST be first for optimal partition pruning
-	tqb.AddCondition("dataset = ?", req.Dataset)
+	// 1. ServiceName filtering for optimal partition pruning (replaces dataset)
+	if req.Dataset != "" {
+		tqb.AddCondition("ServiceName = ?", req.Dataset)
+	}
 
 	// 2. Time range conditions with millisecond precision using toDateTime64
 	if req.StartTime != nil {
@@ -84,15 +81,17 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 	return query, args, nil
 }
 
-// BuildTimeRangeCountQuery builds optimized count queries for time ranges
+// BuildTimeRangeCountQuery builds optimized count queries for time ranges (OTEL format)
 func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建时间范围计数查询", "dataset", req.Dataset)
 
 	tqb.dataset = req.Dataset
-	tqb.baseQuery.WriteString("SELECT count(*) FROM logs")
+	tqb.baseQuery.WriteString("SELECT count(*) FROM otel_logs")
 
 	// Same filtering logic as main query but without ordering/pagination
-	tqb.AddCondition("dataset = ?", req.Dataset)
+	if req.Dataset != "" {
+		tqb.AddCondition("ServiceName = ?", req.Dataset)
+	}
 
 	if req.StartTime != nil {
 		tqb.AddTimeCondition(">=", *req.StartTime)
@@ -113,11 +112,11 @@ func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryReque
 	return query, args, nil
 }
 
-// AddTimeCondition adds time-specific conditions with optimal ClickHouse DateTime64 handling
+// AddTimeCondition adds time-specific conditions with optimal ClickHouse DateTime64 handling (OTEL format)
 func (tqb *TimeQueryBuilder) AddTimeCondition(operator string, t time.Time) {
 	// Use toDateTime64 with nanosecond precision for optimal time comparisons
 	// ClickHouse automatically optimizes DateTime64 operations
-	condition := fmt.Sprintf("timestamp %s toDateTime64(?, 9)", operator)
+	condition := fmt.Sprintf("Timestamp %s toDateTime64(?, 9)", operator)
 
 	// Convert to Unix timestamp with nanosecond precision
 	unixNano := t.UnixNano()
@@ -132,57 +131,57 @@ func (tqb *TimeQueryBuilder) AddTimeCondition(operator string, t time.Time) {
 		"seconds", seconds)
 }
 
-// SetTimeOptimizedOrdering sets ordering optimized for time-range queries
+// SetTimeOptimizedOrdering sets ordering optimized for time-range queries (OTEL format)
 func (tqb *TimeQueryBuilder) SetTimeOptimizedOrdering(direction string) {
-	// For time-range queries, timestamp ordering is most important for performance
-	// Secondary ordering by host_ip helps with consistent pagination
+	// For time-range queries, Timestamp ordering is most important for performance
+	// ORDER BY matches primary key (ServiceName, TimestampTime, Timestamp)
 	if strings.ToLower(direction) == "asc" {
-		tqb.SetOrderBy("timestamp ASC, host_ip ASC")
+		tqb.SetOrderBy("ServiceName ASC, TimestampTime ASC, Timestamp ASC")
 	} else {
-		tqb.SetOrderBy("timestamp DESC, host_ip ASC")
+		tqb.SetOrderBy("ServiceName ASC, TimestampTime DESC, Timestamp DESC")
 	}
 }
 
-// applyAdditionalFilters applies non-time filters after time filtering
+// applyAdditionalFilters applies non-time filters after time filtering (OTEL format)
 func (tqb *TimeQueryBuilder) applyAdditionalFilters(req *request.LogQueryRequest) {
-	// K8s metadata filtering (LowCardinality optimization)
+	// K8s metadata filtering (from LogAttributes map)
 	if req.Namespace != "" {
-		tqb.AddCondition("k8s_namespace_name = ?", req.Namespace)
+		tqb.AddCondition("LogAttributes['k8s.namespace.name'] = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		tqb.AddCondition("k8s_pod_name LIKE ?", "%"+req.PodName+"%")
+		tqb.AddCondition("LogAttributes['k8s.pod.name'] LIKE ?", "%"+req.PodName+"%")
 	}
 	if req.NodeName != "" {
-		tqb.AddCondition("k8s_node_name = ?", req.NodeName)
+		tqb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
 	}
 
-	// Host filtering
+	// Host filtering (from ResourceAttributes map)
 	if req.HostIP != "" {
-		tqb.AddCondition("host_ip = ?", req.HostIP)
+		tqb.AddCondition("ResourceAttributes['host.ip'] = ?", req.HostIP)
 	}
 	if req.HostName != "" {
-		tqb.AddCondition("host_name = ?", req.HostName)
+		tqb.AddCondition("ResourceAttributes['host.name'] = ?", req.HostName)
 	}
 
-	// Container filtering
+	// Container filtering (from LogAttributes map)
 	if req.ContainerName != "" {
-		tqb.AddCondition("container_name = ?", req.ContainerName)
+		tqb.AddCondition("LogAttributes['k8s.container.name'] = ?", req.ContainerName)
 	}
 
 	// Severity filtering
 	if req.Severity != "" {
-		tqb.AddCondition("severity = ?", req.Severity)
+		tqb.AddCondition("SeverityText = ?", req.Severity)
 	}
 
 	// Full-text search (applied after time filtering for performance)
 	if req.Filter != "" {
 		// Use positionCaseInsensitive for better performance with time-filtered datasets
-		tqb.AddCondition("positionCaseInsensitive(content, ?) > 0", req.Filter)
+		tqb.AddCondition("positionCaseInsensitive(Body, ?) > 0", req.Filter)
 	}
 
-	// Tag filtering (bloom filter index)
+	// Tag filtering (from LogAttributes map with bloom filter index)
 	for key, value := range req.Tags {
-		tqb.AddCondition("tags[?] = ?", key, value)
+		tqb.AddCondition("LogAttributes[?] = ?", key, value)
 	}
 }
 

@@ -75,7 +75,7 @@ func (b *K8sFilterBuilder) buildNamespaceConditions(filters map[request.K8sFilte
 		}
 
 		if len(exactPatterns) == 1 {
-			conditions = append(conditions, "k8s_namespace_name = ?")
+			conditions = append(conditions, "LogAttributes['k8s.namespace.name'] = ?")
 			args = append(args, exactPatterns[0])
 		} else {
 			placeholders := make([]string, len(exactPatterns))
@@ -83,7 +83,7 @@ func (b *K8sFilterBuilder) buildNamespaceConditions(filters map[request.K8sFilte
 				placeholders[i] = "?"
 				args = append(args, pattern)
 			}
-			conditions = append(conditions, fmt.Sprintf("k8s_namespace_name IN (%s)",
+			conditions = append(conditions, fmt.Sprintf("LogAttributes['k8s.namespace.name'] IN (%s)",
 				strings.Join(placeholders, ",")))
 		}
 	}
@@ -92,7 +92,7 @@ func (b *K8sFilterBuilder) buildNamespaceConditions(filters map[request.K8sFilte
 	if prefixFilters := filters[request.K8sFilterPrefix]; len(prefixFilters) > 0 {
 		var prefixConditions []string
 		for _, filter := range prefixFilters {
-			prefixConditions = append(prefixConditions, "startsWith(k8s_namespace_name, ?)")
+			prefixConditions = append(prefixConditions, "startsWith(LogAttributes['k8s.namespace.name'], ?)")
 			args = append(args, filter.Pattern)
 		}
 		if len(prefixConditions) == 1 {
@@ -106,7 +106,7 @@ func (b *K8sFilterBuilder) buildNamespaceConditions(filters map[request.K8sFilte
 	if regexFilters := filters[request.K8sFilterRegex]; len(regexFilters) > 0 {
 		var regexConditions []string
 		for _, filter := range regexFilters {
-			regexConditions = append(regexConditions, "match(k8s_namespace_name, ?)")
+			regexConditions = append(regexConditions, "match(LogAttributes['k8s.namespace.name'], ?)")
 			args = append(args, filter.Pattern)
 		}
 		if len(regexConditions) == 1 {
@@ -122,7 +122,7 @@ func (b *K8sFilterBuilder) buildNamespaceConditions(filters map[request.K8sFilte
 		for _, filter := range wildcardFilters {
 			// Convert wildcard pattern to SQL LIKE pattern
 			likePattern := strings.ReplaceAll(strings.ReplaceAll(filter.Pattern, "*", "%"), "?", "_")
-			wildcardConditions = append(wildcardConditions, "k8s_namespace_name LIKE ?")
+			wildcardConditions = append(wildcardConditions, "LogAttributes['k8s.namespace.name'] LIKE ?")
 			args = append(args, likePattern)
 		}
 		if len(wildcardConditions) == 1 {
@@ -148,7 +148,7 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 		}
 
 		if len(exactPatterns) == 1 {
-			conditions = append(conditions, "k8s_pod_name = ?")
+			conditions = append(conditions, "LogAttributes['k8s.pod.name'] = ?")
 			args = append(args, exactPatterns[0])
 		} else {
 			placeholders := make([]string, len(exactPatterns))
@@ -156,7 +156,7 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 				placeholders[i] = "?"
 				args = append(args, pattern)
 			}
-			conditions = append(conditions, fmt.Sprintf("k8s_pod_name IN (%s)",
+			conditions = append(conditions, fmt.Sprintf("LogAttributes['k8s.pod.name'] IN (%s)",
 				strings.Join(placeholders, ",")))
 		}
 	}
@@ -166,9 +166,9 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 		var prefixConditions []string
 		for _, filter := range prefixFilters {
 			if filter.CaseInsensitive {
-				prefixConditions = append(prefixConditions, "startsWithUTF8(lowerUTF8(k8s_pod_name), lowerUTF8(?))")
+				prefixConditions = append(prefixConditions, "startsWithUTF8(lowerUTF8(LogAttributes['k8s.pod.name']), lowerUTF8(?))")
 			} else {
-				prefixConditions = append(prefixConditions, "startsWith(k8s_pod_name, ?)")
+				prefixConditions = append(prefixConditions, "startsWith(LogAttributes['k8s.pod.name'], ?)")
 			}
 			args = append(args, filter.Pattern)
 		}
@@ -180,9 +180,9 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 		var suffixConditions []string
 		for _, filter := range suffixFilters {
 			if filter.CaseInsensitive {
-				suffixConditions = append(suffixConditions, "endsWithUTF8(lowerUTF8(k8s_pod_name), lowerUTF8(?))")
+				suffixConditions = append(suffixConditions, "endsWithUTF8(lowerUTF8(LogAttributes['k8s.pod.name']), lowerUTF8(?))")
 			} else {
-				suffixConditions = append(suffixConditions, "endsWith(k8s_pod_name, ?)")
+				suffixConditions = append(suffixConditions, "endsWith(LogAttributes['k8s.pod.name'], ?)")
 			}
 			args = append(args, filter.Pattern)
 		}
@@ -194,9 +194,9 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 		var containsConditions []string
 		for _, filter := range containsFilters {
 			if filter.CaseInsensitive {
-				containsConditions = append(containsConditions, "positionCaseInsensitiveUTF8(k8s_pod_name, ?) > 0")
+				containsConditions = append(containsConditions, "positionCaseInsensitiveUTF8(LogAttributes['k8s.pod.name'], ?) > 0")
 			} else {
-				containsConditions = append(containsConditions, "position(k8s_pod_name, ?) > 0")
+				containsConditions = append(containsConditions, "position(LogAttributes['k8s.pod.name'], ?) > 0")
 			}
 			args = append(args, filter.Pattern)
 		}
@@ -213,10 +213,10 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 				if !strings.HasPrefix(pattern, "(?i)") {
 					pattern = "(?i)" + pattern
 				}
-				regexConditions = append(regexConditions, "match(k8s_pod_name, ?)")
+				regexConditions = append(regexConditions, "match(LogAttributes['k8s.pod.name'], ?)")
 				args = append(args, pattern)
 			} else {
-				regexConditions = append(regexConditions, "match(k8s_pod_name, ?)")
+				regexConditions = append(regexConditions, "match(LogAttributes['k8s.pod.name'], ?)")
 				args = append(args, filter.Pattern)
 			}
 		}
@@ -229,9 +229,9 @@ func (b *K8sFilterBuilder) buildPodConditions(filters map[request.K8sFilterType]
 		for _, filter := range wildcardFilters {
 			likePattern := strings.ReplaceAll(strings.ReplaceAll(filter.Pattern, "*", "%"), "?", "_")
 			if filter.CaseInsensitive {
-				wildcardConditions = append(wildcardConditions, "lowerUTF8(k8s_pod_name) LIKE lowerUTF8(?)")
+				wildcardConditions = append(wildcardConditions, "lowerUTF8(LogAttributes['k8s.pod.name']) LIKE lowerUTF8(?)")
 			} else {
-				wildcardConditions = append(wildcardConditions, "k8s_pod_name LIKE ?")
+				wildcardConditions = append(wildcardConditions, "LogAttributes['k8s.pod.name'] LIKE ?")
 			}
 			args = append(args, likePattern)
 		}

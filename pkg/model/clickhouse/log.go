@@ -2,36 +2,101 @@ package clickhouse
 
 import "time"
 
-// LogEntry represents a log entry in ClickHouse (mapping to Story 1-2 schema)
+// LogEntry represents a log entry in ClickHouse using OTEL standard format (ADR-001)
+// Maps to the otel_logs table structure created by OTEL Collector ClickHouse exporter
 type LogEntry struct {
-	// Time and data isolation
-	Timestamp time.Time `ch:"timestamp"`
-	Dataset   string    `ch:"dataset"`
+	// Core OTEL fields
+	Timestamp      time.Time `ch:"Timestamp"`
+	TimestampTime  time.Time `ch:"TimestampTime"`
+	TraceID        string    `ch:"TraceId"`
+	SpanID         string    `ch:"SpanId"`
+	TraceFlags     uint8     `ch:"TraceFlags"`
+	SeverityText   string    `ch:"SeverityText"`
+	SeverityNumber uint8     `ch:"SeverityNumber"`
+	ServiceName    string    `ch:"ServiceName"`
+	Body           string    `ch:"Body"`
 
-	// Log content
-	Content  string `ch:"content"`
-	Severity string `ch:"severity"`
+	// Resource metadata
+	ResourceSchemaUrl  string            `ch:"ResourceSchemaUrl"`
+	ResourceAttributes map[string]string `ch:"ResourceAttributes"`
 
-	// Container information
-	ContainerID   string `ch:"container_id"`
-	ContainerName string `ch:"container_name"`
-	PID           string `ch:"pid"`
+	// Scope metadata
+	ScopeSchemaUrl string            `ch:"ScopeSchemaUrl"`
+	ScopeName      string            `ch:"ScopeName"`
+	ScopeVersion   string            `ch:"ScopeVersion"`
+	ScopeAttributes map[string]string `ch:"ScopeAttributes"`
 
-	// Host information
-	HostIP   string `ch:"host_ip"`
-	HostName string `ch:"host_name"`
-
-	// K8s metadata
-	K8sNamespace string `ch:"k8s_namespace_name"`
-	K8sPodName   string `ch:"k8s_pod_name"`
-	K8sPodUID    string `ch:"k8s_pod_uid"`
-	K8sNodeName  string `ch:"k8s_node_name"`
-
-	// Analysis dimensions tags
-	Tags map[string]string `ch:"tags"`
+	// Log attributes (includes K8s metadata)
+	LogAttributes map[string]string `ch:"LogAttributes"`
 }
 
 // TableName returns the ClickHouse table name
 func (LogEntry) TableName() string {
-	return "logs"
+	return "otel_logs"
+}
+
+// GetContent returns the log message body (OTEL Body field)
+func (l *LogEntry) GetContent() string {
+	return l.Body
+}
+
+// GetSeverity returns the severity level (OTEL SeverityText field)
+func (l *LogEntry) GetSeverity() string {
+	return l.SeverityText
+}
+
+// GetK8sNamespace extracts namespace from LogAttributes
+func (l *LogEntry) GetK8sNamespace() string {
+	if ns, ok := l.LogAttributes["k8s.namespace.name"]; ok {
+		return ns
+	}
+	return ""
+}
+
+// GetK8sPodName extracts pod name from LogAttributes
+func (l *LogEntry) GetK8sPodName() string {
+	if pod, ok := l.LogAttributes["k8s.pod.name"]; ok {
+		return pod
+	}
+	return ""
+}
+
+// GetK8sNodeName extracts node name from LogAttributes
+func (l *LogEntry) GetK8sNodeName() string {
+	if node, ok := l.LogAttributes["k8s.node.name"]; ok {
+		return node
+	}
+	return ""
+}
+
+// GetContainerName extracts container name from LogAttributes
+func (l *LogEntry) GetContainerName() string {
+	if container, ok := l.LogAttributes["k8s.container.name"]; ok {
+		return container
+	}
+	return ""
+}
+
+// GetContainerID extracts container ID from LogAttributes
+func (l *LogEntry) GetContainerID() string {
+	if id, ok := l.LogAttributes["container.id"]; ok {
+		return id
+	}
+	return ""
+}
+
+// GetHostIP extracts host IP from ResourceAttributes
+func (l *LogEntry) GetHostIP() string {
+	if ip, ok := l.ResourceAttributes["host.ip"]; ok {
+		return ip
+	}
+	return ""
+}
+
+// GetHostName extracts host name from ResourceAttributes
+func (l *LogEntry) GetHostName() string {
+	if name, ok := l.ResourceAttributes["host.name"]; ok {
+		return name
+	}
+	return ""
 }
