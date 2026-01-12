@@ -77,11 +77,20 @@ func NewConnectionManager(cfg *config.ClickHouseConfig) (*ConnectionManager, err
 	// Open SQL interface for connection pool management
 	sqlDB := clickhouse.OpenDB(options)
 
-	// Configure connection pool
+	// Configure connection pool - MUST be set before first use
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	sqlDB.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+
+	// Verify SQL connection with ping
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel2()
+	if err := sqlDB.PingContext(ctx2); err != nil {
+		sqlDB.Close()
+		conn.Close()
+		return nil, MapClickHouseError(err, "sql_connection_ping").Err
+	}
 
 	klog.InfoS("ClickHouse 连接已建立",
 		"host", cfg.Host,
