@@ -330,6 +330,14 @@ func (r *ClickHouseRepository) Close() error {
 	return nil
 }
 
+// GetDB returns the underlying SQL database connection for direct queries
+func (r *ClickHouseRepository) GetDB() interface{} {
+	if r.cm != nil {
+		return r.cm.GetDB()
+	}
+	return nil
+}
+
 // validateLogEntry validates a log entry before insertion (OTEL format)
 // Note: This is kept for backward compatibility but insert methods are deprecated
 func (r *ClickHouseRepository) validateLogEntry(log *clickhouse.LogEntry) error {

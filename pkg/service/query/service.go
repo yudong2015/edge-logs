@@ -301,8 +301,8 @@ func (s *Service) transformAndEnrichLogs(ctx context.Context, logs []clickhouse.
 			responseLog := s.transformLogToResponse(log)
 
 			// Apply enrichment if available
-			if enrichmentResult != nil && log.K8sPodUID != "" {
-				if podMetadata, exists := enrichmentResult.Metadata[log.K8sPodUID]; exists {
+			if enrichmentResult != nil && log.GetK8sPodUID() != "" {
+				if podMetadata, exists := enrichmentResult.Metadata[log.GetK8sPodUID()]; exists {
 					s.applyEnrichment(&responseLog, podMetadata)
 				}
 			}
@@ -376,15 +376,15 @@ func enrichLabels(originalTags map[string]string, log clickhouse.LogEntry) map[s
 		labels[k] = v
 	}
 
-	// Add enrichment metadata
-	if log.HostName != "" {
-		labels["host_name"] = log.HostName
+	// Add enrichment metadata using getter methods
+	if hostName := log.GetHostName(); hostName != "" {
+		labels["host_name"] = hostName
 	}
-	if log.K8sNodeName != "" {
-		labels["node_name"] = log.K8sNodeName
+	if nodeName := log.GetK8sNodeName(); nodeName != "" {
+		labels["node_name"] = nodeName
 	}
-	if log.K8sPodUID != "" {
-		labels["pod_uid"] = log.K8sPodUID
+	if podUID := log.GetK8sPodUID(); podUID != "" {
+		labels["pod_uid"] = podUID
 	}
 
 	return labels
@@ -396,9 +396,10 @@ func (s *Service) collectPodUIDs(logs []clickhouse.LogEntry) []string {
 	var podUIDs []string
 
 	for _, log := range logs {
-		if log.K8sPodUID != "" && !seen[log.K8sPodUID] {
-			seen[log.K8sPodUID] = true
-			podUIDs = append(podUIDs, log.K8sPodUID)
+		podUID := log.GetK8sPodUID()
+		if podUID != "" && !seen[podUID] {
+			seen[podUID] = true
+			podUIDs = append(podUIDs, podUID)
 		}
 	}
 
@@ -407,17 +408,17 @@ func (s *Service) collectPodUIDs(logs []clickhouse.LogEntry) []string {
 
 // transformLogToResponse converts a single log entry to response format
 func (s *Service) transformLogToResponse(log clickhouse.LogEntry) response.LogEntry {
-	logID := generateLogID(log.Dataset, log.Timestamp, log.HostIP)
+	logID := generateLogID(log.GetDataset(), log.Timestamp, log.GetHostIP())
 
 	return response.LogEntry{
 		ID:        logID,
 		Timestamp: log.Timestamp,
-		Message:   log.Content,
-		Level:     log.Severity,
-		Namespace: log.K8sNamespace,
-		Pod:       log.K8sPodName,
-		Container: log.ContainerName,
-		Labels:    enrichLabels(log.Tags, log),
+		Message:   log.GetContent(),
+		Level:     log.GetSeverity(),
+		Namespace: log.GetK8sNamespace(),
+		Pod:       log.GetK8sPodName(),
+		Container: log.GetContainerName(),
+		Labels:    enrichLabels(log.LogAttributes, log),
 	}
 }
 

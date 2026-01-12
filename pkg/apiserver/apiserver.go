@@ -18,11 +18,20 @@ type Server struct {
 	config     *config.Config
 	container  *restful.Container
 	httpServer *http.Server
-	repo       clickhouse.Repository
+	repo       *clickhouse.ClickHouseRepository
 }
 
 // New creates a new API server instance
 func New(cfg *config.Config) (*Server, error) {
+	// Initialize ClickHouse repository
+	repo, err := clickhouse.NewClickHouseRepository(&cfg.ClickHouse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ClickHouse repository: %w", err)
+	}
+	klog.InfoS("ClickHouse repository initialized",
+		"host", cfg.ClickHouse.Host,
+		"database", cfg.ClickHouse.Database)
+
 	container := restful.NewContainer()
 
 	// Add CORS filter
@@ -62,6 +71,7 @@ func New(cfg *config.Config) (*Server, error) {
 	server := &Server{
 		config:    cfg,
 		container: container,
+		repo:      repo,
 		httpServer: &http.Server{
 			Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 			Handler:      container,

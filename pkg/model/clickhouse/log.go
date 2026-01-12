@@ -100,3 +100,16 @@ func (l *LogEntry) GetHostName() string {
 	}
 	return ""
 }
+
+// GetK8sPodUID extracts pod UID from LogAttributes
+func (l *LogEntry) GetK8sPodUID() string {
+	if uid, ok := l.LogAttributes["k8s.pod.uid"]; ok {
+		return uid
+	}
+	return ""
+}
+
+// GetDataset returns ServiceName as dataset identifier for compatibility
+func (l *LogEntry) GetDataset() string {
+	return l.ServiceName
+}
