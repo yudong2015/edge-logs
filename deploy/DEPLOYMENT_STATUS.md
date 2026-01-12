@@ -347,3 +347,112 @@ ssh hw101 "kubectl exec -n edge-logs clickhouse-0 -- clickhouse-client --query '
 - ⏳ 等待验证完整的日志收集流程
 
 **国产化镜像**: 所有组件均已使用 `quanzhenglong.com/edge` 仓库镜像，满足国产化要求。
+
+---
+
+# 📍 架构升级 (2026-01-12)
+
+## OTEL Collector 数据管道迁移
+
+根据 ADR-001 决策，日志管道架构已升级为 OpenTelemetry 标准格式：
+
+### 架构变更
+
+**变更前**:
+```
+iLogtail → HTTP → edge-logs-apiserver → ClickHouse (logs 表)
+```
+
+**变更后**:
+```
+iLogtail → OTLP gRPC (4317) → OTEL Collector → TCP (9000) → ClickHouse (otel_logs 表)
+```
+
+### 主要变更点
+
+#### 1. iLogtail 配置变更
+- **输出方式**: `flusher_http` → `flusher_otlp`
+- **协议**: HTTP JSON → OTLP gRPC
+- **端口**: 30123 → 4317 (OTEL Collector)
+- **配置文件**: `deploy/k8s/04-ilogtail.yaml`
+
+#### 2. OTEL Collector 新增
+- **镜像**: `otel/opentelemetry-collector-contrib:0.115.0`
+- **接收器**: OTLP gRPC (4317)
+- **导出器**: ClickHouse Exporter (TCP 9000)
+- **配置文件**: `deploy/k8s/05-otel-collector.yaml`
+- **RBAC**: ServiceAccount + ClusterRole for k8sattributes processor
+
+#### 3. ClickHouse 表结构升级
+- **表名**: `logs` → `otel_logs`
+- **字段格式**: 自定义格式 → OTEL 标准格式
+- **配置文件**: `deploy/k8s/01-clickhouse.yaml`
+
+### 字段映射
+
+| 旧字段 | 新字段 (OTEL) |
+|--------|---------------|
+| timestamp | Timestamp (DateTime64(9)) |
+| dataset | ServiceName |
+| content | Body |
+| severity | SeverityText |
+| k8s_namespace_name | LogAttributes['k8s.namespace.name'] |
+| k8s_pod_name | LogAttributes['k8s.pod.name'] |
+| k8s_node_name | LogAttributes['k8s.node.name'] |
+| container_name | LogAttributes['k8s.container.name'] |
+| host_ip | ResourceAttributes['host.ip'] |
+| host_name | ResourceAttributes['host.name'] |
+
+### API Server 代码变更
+
+以下文件已更新适配 OTEL 表结构：
+
+| 文件 | 变更说明 |
+|------|----------|
+| `pkg/model/clickhouse/log.go` | LogEntry 结构体适配 OTEL 格式 |
+| `pkg/repository/clickhouse/query_builder.go` | 查询构建器适配新表 |
+| `pkg/repository/clickhouse/time_queries.go` | 时间范围查询适配 |
+| `pkg/repository/clickhouse/k8s_queries.go` | K8s 元数据查询适配 |
+| `pkg/repository/clickhouse/k8s_filter_builder.go` | K8s 过滤器适配 |
+| `pkg/repository/clickhouse/content_search_queries.go` | 内容搜索适配 |
+| `pkg/repository/clickhouse/aggregation_queries.go` | 聚合查询适配 |
+| `pkg/repository/clickhouse/dataset_queries.go` | 数据集查询适配 |
+| `pkg/repository/clickhouse/repository.go` | 仓储层适配 |
+| `pkg/repository/clickhouse/error.go` | 错误处理更新 |
+
+### 废弃功能
+
+- `InsertLog()` - 日志写入由 OTEL Collector 处理
+- `InsertLogsBatch()` - 日志批量写入由 OTEL Collector 处理
+- `BuildInsertQuery()` - INSERT 语句由 OTEL Collector 生成
+
+### 部署验证
+
+```bash
+# 1. 验证 OTEL Collector 状态
+kubectl get pods -n edge-logs -l app=otel-collector
+
+# 2. 验证 iLogtail 到 OTEL Collector 连接
+kubectl logs -n edge-logs -l app=ilogtail --tail=50 | grep -i otlp
+
+# 3. 验证 ClickHouse otel_logs 表
+kubectl exec -n edge-logs clickhouse-0 -- clickhouse-client \
+  --query "SELECT count() FROM otel_logs"
+
+# 4. 查看最新日志
+kubectl exec -n edge-logs clickhouse-0 -- clickhouse-client \
+  --query "SELECT Timestamp, ServiceName, SeverityText, Body FROM otel_logs ORDER BY Timestamp DESC LIMIT 5"
+```
+
+### 性能优化
+
+- **索引优化**: tokenbf_v1 布隆过滤器索引支持全文搜索
+- **分区策略**: 按 ServiceName + TimestampTime 分区
+- **压缩算法**: ZSTD(1) 压缩减少存储空间
+- **查询优化**: ORDER BY 匹配主键 (ServiceName, TimestampTime, Timestamp)
+
+### 兼容性说明
+
+- API 接口保持向后兼容，仅内部实现变更
+- 旧 `logs` 表数据不会自动迁移，需手动处理
+- OTEL 标准格式支持更丰富的元数据和追踪信息

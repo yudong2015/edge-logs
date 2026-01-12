@@ -95,14 +95,15 @@ func benchmarkBuildCountQuery(b *testing.B) {
 	}
 }
 
-// benchmarkBuildInsertQuery benchmarks insert query building
+// benchmarkBuildInsertQuery benchmarks insert query building (deprecated in OTEL format)
 func benchmarkBuildInsertQuery(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qb := NewQueryBuilder()
 		_, err := qb.BuildInsertQuery()
-		if err != nil {
-			b.Fatal(err)
+		// InsertQuery is deprecated in OTEL format, expect error
+		if err == nil {
+			b.Fatal("expected error for deprecated BuildInsertQuery")
 		}
 	}
 }
@@ -132,24 +133,24 @@ func BenchmarkValidation(b *testing.B) {
 	b.Run("RequestValidation", benchmarkRequestValidation)
 }
 
-// benchmarkLogEntryValidation benchmarks log entry validation
+// benchmarkLogEntryValidation benchmarks log entry validation (OTEL format)
 func benchmarkLogEntryValidation(b *testing.B) {
 	repo := &ClickHouseRepository{}
 	logEntry := &chModel.LogEntry{
-		Timestamp:     time.Now(),
-		Dataset:       "benchmark-dataset",
-		Content:       "Benchmark log message with detailed content for validation testing",
-		Severity:      "INFO",
-		ContainerID:   "container-12345",
-		ContainerName: "benchmark-container",
-		PID:           "1234",
-		HostIP:        "192.168.1.100",
-		HostName:      "benchmark-host",
-		K8sNamespace:  "benchmark",
-		K8sPodName:    "benchmark-pod-123",
-		K8sPodUID:     "pod-uid-12345",
-		K8sNodeName:   "node-1",
-		Tags:          map[string]string{"cluster": "benchmark", "region": "us-east-1", "service": "api"},
+		Timestamp:    time.Now(),
+		ServiceName:  "benchmark-service",
+		Body:         "Benchmark log message with detailed content for validation testing",
+		SeverityText: "INFO",
+		LogAttributes: map[string]string{
+			"k8s.namespace.name": "benchmark",
+			"k8s.pod.name":       "benchmark-pod-123",
+			"k8s.container.name": "benchmark-container",
+			"k8s.node.name":      "node-1",
+		},
+		ResourceAttributes: map[string]string{
+			"host.ip":   "192.168.1.100",
+			"host.name": "benchmark-host",
+		},
 	}
 
 	b.ResetTimer()
@@ -251,19 +252,22 @@ func benchmarkConcurrentQueryBuilding(b *testing.B) {
 	})
 }
 
-// benchmarkConcurrentValidation benchmarks concurrent validation
+// benchmarkConcurrentValidation benchmarks concurrent validation (OTEL format)
 func benchmarkConcurrentValidation(b *testing.B) {
 	repo := &ClickHouseRepository{}
 	logEntry := &chModel.LogEntry{
-		Timestamp:     time.Now(),
-		Dataset:       "benchmark-dataset",
-		Content:       "Concurrent benchmark log message",
-		Severity:      "INFO",
-		ContainerName: "concurrent-benchmark-container",
-		HostIP:        "192.168.1.100",
-		K8sNamespace:  "benchmark",
-		K8sPodName:    "concurrent-pod",
-		Tags:          map[string]string{"test": "concurrent"},
+		Timestamp:    time.Now(),
+		ServiceName:  "benchmark-service",
+		Body:         "Concurrent benchmark log message",
+		SeverityText: "INFO",
+		LogAttributes: map[string]string{
+			"k8s.namespace.name": "benchmark",
+			"k8s.pod.name":       "concurrent-pod",
+			"k8s.container.name": "concurrent-benchmark-container",
+		},
+		ResourceAttributes: map[string]string{
+			"host.ip": "192.168.1.100",
+		},
 	}
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -303,26 +307,27 @@ func benchmarkQueryBuilderAllocation(b *testing.B) {
 	}
 }
 
-// benchmarkLogEntryAllocation benchmarks memory allocation for log entries
+// benchmarkLogEntryAllocation benchmarks memory allocation for log entries (OTEL format)
 func benchmarkLogEntryAllocation(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logEntry := &chModel.LogEntry{
-			Timestamp:     time.Now(),
-			Dataset:       "benchmark-dataset",
-			Content:       fmt.Sprintf("Allocation benchmark log %d", i),
-			Severity:      "INFO",
-			ContainerID:   fmt.Sprintf("container-%d", i),
-			ContainerName: "allocation-benchmark",
-			PID:           fmt.Sprintf("%d", 1000+i),
-			HostIP:        "192.168.1.100",
-			HostName:      "allocation-host",
-			K8sNamespace:  "benchmark",
-			K8sPodName:    fmt.Sprintf("allocation-pod-%d", i),
-			K8sPodUID:     fmt.Sprintf("uid-%d", i),
-			K8sNodeName:   "allocation-node",
-			Tags:          map[string]string{"benchmark": "allocation", "index": fmt.Sprintf("%d", i)},
+			Timestamp:    time.Now(),
+			ServiceName:  "benchmark-service",
+			Body:         fmt.Sprintf("Allocation benchmark log %d", i),
+			SeverityText: "INFO",
+			LogAttributes: map[string]string{
+				"k8s.namespace.name": "benchmark",
+				"k8s.pod.name":       fmt.Sprintf("allocation-pod-%d", i),
+				"k8s.container.name": "allocation-benchmark",
+				"k8s.node.name":      "allocation-node",
+				"container.id":       fmt.Sprintf("container-%d", i),
+			},
+			ResourceAttributes: map[string]string{
+				"host.ip":   "192.168.1.100",
+				"host.name": "allocation-host",
+			},
 		}
 		_ = logEntry
 	}
@@ -373,13 +378,14 @@ func BenchmarkPerformanceRequirements(b *testing.B) {
 		// Requirement: Validation should complete in < 100μs
 		repo := &ClickHouseRepository{}
 		logEntry := &chModel.LogEntry{
-			Timestamp:     time.Now(),
-			Dataset:       "performance-test",
-			Content:       "Performance test log message",
-			Severity:      "INFO",
-			ContainerName: "performance-container",
-			K8sNamespace:  "performance",
-			Tags:          map[string]string{"test": "performance"},
+			Timestamp:    time.Now(),
+			ServiceName:  "performance-test",
+			Body:         "Performance test log message",
+			SeverityText: "INFO",
+			LogAttributes: map[string]string{
+				"k8s.namespace.name": "performance",
+				"k8s.container.name": "performance-container",
+			},
 		}
 
 		b.ResetTimer()
@@ -400,10 +406,11 @@ func BenchmarkPerformanceRequirements(b *testing.B) {
 	})
 }
 
-// Benchmark scenarios based on iLogtail workload patterns
+// Benchmark scenarios based on iLogtail workload patterns (OTEL format)
+// Note: iLogtail now outputs to OTEL Collector, not directly to API server
 func BenchmarkILogtailWorkloads(b *testing.B) {
 	b.Run("HighFrequencySmallBatches", func(b *testing.B) {
-		// Simulate iLogtail sending small frequent batches
+		// Simulate iLogtail sending small frequent batches via OTEL
 		batchSize := 10
 		baseTime := time.Now()
 
@@ -412,14 +419,19 @@ func BenchmarkILogtailWorkloads(b *testing.B) {
 			logs := make([]chModel.LogEntry, batchSize)
 			for j := 0; j < batchSize; j++ {
 				logs[j] = chModel.LogEntry{
-					Timestamp:     baseTime.Add(time.Duration(i*batchSize+j) * time.Millisecond),
-					Dataset:       "ilogtail-dataset",
-					Content:       fmt.Sprintf("iLogtail log batch %d entry %d", i, j),
-					Severity:      "INFO",
-					ContainerName: "ilogtail-container",
-					HostIP:        "192.168.1.100",
-					K8sNamespace:  "ilogtail",
-					Tags:          map[string]string{"source": "ilogtail", "batch": fmt.Sprintf("%d", i)},
+					Timestamp:    baseTime.Add(time.Duration(i*batchSize+j) * time.Millisecond),
+					ServiceName:  "ilogtail-service",
+					Body:         fmt.Sprintf("iLogtail log batch %d entry %d", i, j),
+					SeverityText: "INFO",
+					LogAttributes: map[string]string{
+						"k8s.namespace.name": "ilogtail",
+						"k8s.container.name": "ilogtail-container",
+						"source":             "ilogtail",
+						"batch":              fmt.Sprintf("%d", i),
+					},
+					ResourceAttributes: map[string]string{
+						"host.ip": "192.168.1.100",
+					},
 				}
 			}
 			// Simulate validation that would happen before insertion
@@ -435,7 +447,7 @@ func BenchmarkILogtailWorkloads(b *testing.B) {
 	})
 
 	b.Run("LargeBatchesLowFrequency", func(b *testing.B) {
-		// Simulate iLogtail sending large infrequent batches
+		// Simulate iLogtail sending large infrequent batches via OTEL
 		batchSize := 1000
 		baseTime := time.Now()
 
@@ -444,14 +456,20 @@ func BenchmarkILogtailWorkloads(b *testing.B) {
 			logs := make([]chModel.LogEntry, batchSize)
 			for j := 0; j < batchSize; j++ {
 				logs[j] = chModel.LogEntry{
-					Timestamp:     baseTime.Add(time.Duration(i*batchSize+j) * time.Microsecond),
-					Dataset:       "ilogtail-large-dataset",
-					Content:       fmt.Sprintf("iLogtail large batch %d entry %d with more detailed content", i, j),
-					Severity:      "INFO",
-					ContainerName: "ilogtail-large-container",
-					HostIP:        "192.168.1.100",
-					K8sNamespace:  "ilogtail-large",
-					Tags:          map[string]string{"source": "ilogtail", "type": "large_batch", "batch": fmt.Sprintf("%d", i)},
+					Timestamp:    baseTime.Add(time.Duration(i*batchSize+j) * time.Microsecond),
+					ServiceName:  "ilogtail-large-service",
+					Body:         fmt.Sprintf("iLogtail large batch %d entry %d with more detailed content", i, j),
+					SeverityText: "INFO",
+					LogAttributes: map[string]string{
+						"k8s.namespace.name": "ilogtail-large",
+						"k8s.container.name": "ilogtail-large-container",
+						"source":             "ilogtail",
+						"type":               "large_batch",
+						"batch":              fmt.Sprintf("%d", i),
+					},
+					ResourceAttributes: map[string]string{
+						"host.ip": "192.168.1.100",
+					},
 				}
 			}
 			// Validate the entire batch

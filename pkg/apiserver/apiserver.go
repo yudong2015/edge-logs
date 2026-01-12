@@ -10,6 +10,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/outpostos/edge-logs/pkg/config"
+	"github.com/outpostos/edge-logs/pkg/repository/clickhouse"
 )
 
 // Server represents the API server
@@ -17,6 +18,7 @@ type Server struct {
 	config     *config.Config
 	container  *restful.Container
 	httpServer *http.Server
+	repo       clickhouse.Repository
 }
 
 // New creates a new API server instance

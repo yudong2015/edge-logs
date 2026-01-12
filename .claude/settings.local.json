@@ -48,7 +48,15 @@
       "Bash(docker image inspect:*)",
       "Bash(skopeo copy:*)",
       "Read(//Users/neov/src/github.com/CloudDetail/apo/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(skopeo list-tags:*)",
+      "Bash(HTTPS_PROXY=http://192.168.1.5:7890 HTTP_PROXY=http://192.168.1.5:7890 skopeo copy:*)",
+      "Bash(git submodule update:*)",
+      "Skill(blog)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl exec -n edge-logs deploy/edge-logs-apiserver -- curl -s \"http://localhost:8080/apis/log.theriseunion.io/v1alpha1/health\")",
+      "Bash(kubectl run:*)",
+      "Bash(kubectl exec:*)"
     ]
   }
 }

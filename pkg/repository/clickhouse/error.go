@@ -63,7 +63,7 @@ func MapClickHouseError(err error, op string) *RepositoryError {
 	errMsg := strings.ToLower(err.Error())
 	repoErr := &RepositoryError{
 		Op:      op,
-		Table:   "logs", // Default table
+		Table:   "otel_logs", // Default table (OTEL format)
 		Err:     err,
 		Context: make(map[string]interface{}),
 	}
@@ -197,7 +197,7 @@ func GetErrorType(err error) ErrorType {
 func NewValidationError(op, message string) *RepositoryError {
 	return &RepositoryError{
 		Op:    op,
-		Table: "logs",
+		Table: "otel_logs",
 		Err:   fmt.Errorf("validation failed: %s", message),
 		Context: map[string]interface{}{
 			"type":        ErrorTypeValidation,
@@ -211,7 +211,7 @@ func NewValidationError(op, message string) *RepositoryError {
 func NewQueryError(op, query string, err error) *RepositoryError {
 	return &RepositoryError{
 		Op:    op,
-		Table: "logs",
+		Table: "otel_logs",
 		Err:   fmt.Errorf("query execution failed: %w", err),
 		Context: map[string]interface{}{
 			"type":        ErrorTypeQuery,
@@ -226,7 +226,7 @@ func NewQueryError(op, query string, err error) *RepositoryError {
 func NewDataFormatError(op, field string, err error) *RepositoryError {
 	return &RepositoryError{
 		Op:    op,
-		Table: "logs",
+		Table: "otel_logs",
 		Err:   fmt.Errorf("data format error in field '%s': %w", field, err),
 		Context: map[string]interface{}{
 			"type":        ErrorTypeDataFormat,

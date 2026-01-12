@@ -17,13 +17,6 @@ data:
         ExcludeFiles:
           - ilogtail.*\.log
           - otel-collector.*\.log
-        # Enable K8s metadata collection
-        EnableContainerDiscovery: true
-        ContainerFilters:
-          IncludeEnv:
-            COLLECT_LOGS: "true"
-          ExcludeContainerLabel:
-            io.kubernetes.container.name: "ilogtail"
     processors:
       # Parse JSON log content
       - Type: processor_json
@@ -48,7 +41,6 @@ data:
           Endpoint: "otel-collector.edge-logs.svc.cluster.local:4317"
           Timeout: 10000
           WaitForReady: true
-          Compression: gzip
           # Resource attributes mapping
           ResourceAttributes:
             - From: "__host_name__"

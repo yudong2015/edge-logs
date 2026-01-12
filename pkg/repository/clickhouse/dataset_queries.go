@@ -26,7 +26,7 @@ type DateRange struct {
 	Latest   time.Time `json:"latest"`
 }
 
-// DatasetExists checks if a dataset exists and contains data in ClickHouse
+// DatasetExists checks if a dataset exists and contains data in ClickHouse (OTEL format)
 func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string) (bool, error) {
 	klog.V(4).InfoS("检查数据集是否存在", "dataset", dataset)
 
@@ -35,11 +35,11 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 		return false, fmt.Errorf("dataset parameter cannot be empty")
 	}
 
-	// Check if dataset has any data in the logs table
+	// Check if dataset has any data in the otel_logs table (ServiceName replaces dataset)
 	query := `
 		SELECT COUNT(*)
-		FROM logs
-		WHERE dataset = ?
+		FROM otel_logs
+		WHERE ServiceName = ?
 		LIMIT 1
 	`
 
@@ -60,7 +60,7 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 	return exists, nil
 }
 
-// GetDatasetStats retrieves comprehensive statistics for a dataset
+// GetDatasetStats retrieves comprehensive statistics for a dataset (OTEL format)
 func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset string) (*DatasetMetadata, error) {
 	klog.V(4).InfoS("获取数据集统计信息", "dataset", dataset)
 
@@ -74,14 +74,14 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		Name: dataset,
 	}
 
-	// Get basic statistics: total logs, date range
+	// Get basic statistics: total logs, date range (OTEL format: Timestamp replaces timestamp)
 	statsQuery := `
 		SELECT
 			COUNT(*) as total_logs,
-			MIN(timestamp) as earliest_time,
-			MAX(timestamp) as latest_time
-		FROM logs
-		WHERE dataset = ?
+			MIN(Timestamp) as earliest_time,
+			MAX(Timestamp) as latest_time
+		FROM otel_logs
+		WHERE ServiceName = ?
 	`
 
 	var earliest, latest time.Time
@@ -101,34 +101,32 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	}
 	metadata.LastUpdated = latest
 
-	// Get partition count from system.parts
+	// Get partition count from system.parts (OTEL table: otel_logs)
 	partitionQuery := `
 		SELECT COUNT(DISTINCT partition) as partition_count
 		FROM system.parts
-		WHERE table = 'logs'
+		WHERE table = 'otel_logs'
 		AND database = ?
-		AND partition LIKE ?
 		AND active = 1
 	`
 
-	err = db.QueryRowContext(ctx, partitionQuery, r.config.Database, dataset+"_%").Scan(&metadata.PartitionCount)
+	err = db.QueryRowContext(ctx, partitionQuery, r.config.Database).Scan(&metadata.PartitionCount)
 	if err != nil {
 		klog.ErrorS(err, "数据集分区统计查询失败", "dataset", dataset)
 		// Don't fail completely, just set partition count to 0
 		metadata.PartitionCount = 0
 	}
 
-	// Get data size from system.parts
+	// Get data size from system.parts (OTEL table: otel_logs)
 	sizeQuery := `
 		SELECT COALESCE(SUM(bytes_on_disk), 0) as data_size_bytes
 		FROM system.parts
-		WHERE table = 'logs'
+		WHERE table = 'otel_logs'
 		AND database = ?
-		AND partition LIKE ?
 		AND active = 1
 	`
 
-	err = db.QueryRowContext(ctx, sizeQuery, r.config.Database, dataset+"_%").Scan(&metadata.DataSizeBytes)
+	err = db.QueryRowContext(ctx, sizeQuery, r.config.Database).Scan(&metadata.DataSizeBytes)
 	if err != nil {
 		klog.ErrorS(err, "数据集大小统计查询失败", "dataset", dataset)
 		// Don't fail completely, just set size to 0
@@ -145,15 +143,16 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	return metadata, nil
 }
 
-// ListAvailableDatasets returns a list of datasets with data
+// ListAvailableDatasets returns a list of datasets with data (OTEL format)
 func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]string, error) {
 	klog.V(4).InfoS("获取可用数据集列表")
 
+	// OTEL format: ServiceName replaces dataset
 	query := `
-		SELECT DISTINCT dataset
-		FROM logs
-		WHERE dataset != ''
-		ORDER BY dataset
+		SELECT DISTINCT ServiceName
+		FROM otel_logs
+		WHERE ServiceName != ''
+		ORDER BY ServiceName
 	`
 
 	db := r.cm.GetDB()
@@ -183,12 +182,12 @@ func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]str
 	return datasets, nil
 }
 
-// QueryWithDataset ensures all repository queries are dataset-scoped
+// QueryWithDataset ensures all repository queries are dataset-scoped (OTEL format)
 func (r *ClickHouseRepository) QueryWithDataset(ctx context.Context, query string, dataset string, args ...interface{}) (*sql.Rows, error) {
-	// Validate that query contains dataset filter for security
+	// Validate that query contains ServiceName filter for security (OTEL format)
 	queryLower := strings.ToLower(query)
-	if !strings.Contains(queryLower, "dataset = ?") && !strings.Contains(queryLower, "dataset=?") {
-		return nil, fmt.Errorf("query must include dataset filter for security")
+	if !strings.Contains(queryLower, "servicename = ?") && !strings.Contains(queryLower, "servicename=?") {
+		return nil, fmt.Errorf("query must include ServiceName filter for security")
 	}
 
 	// Validate dataset parameter
@@ -206,12 +205,12 @@ func (r *ClickHouseRepository) QueryWithDataset(ctx context.Context, query strin
 
 	db := r.cm.GetDB()
 
-	// Prepend dataset to args
+	// Prepend dataset to args (ServiceName in OTEL format)
 	finalArgs := append([]interface{}{dataset}, args...)
 	return db.QueryContext(queryCtx, query, finalArgs...)
 }
 
-// GetDatasetHealth performs health checks specific to a dataset
+// GetDatasetHealth performs health checks specific to a dataset (OTEL format)
 func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset string) (*DatasetHealth, error) {
 	klog.V(4).InfoS("执行数据集健康检查", "dataset", dataset)
 
@@ -235,12 +234,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		return health, nil
 	}
 
-	// Check recent data availability (last 24 hours)
+	// Check recent data availability (last 24 hours) - OTEL format
 	recentDataQuery := `
 		SELECT COUNT(*)
-		FROM logs
-		WHERE dataset = ?
-		AND timestamp >= ?
+		FROM otel_logs
+		WHERE ServiceName = ?
+		AND Timestamp >= ?
 	`
 
 	since := time.Now().Add(-24 * time.Hour)
@@ -259,11 +258,11 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		health.ErrorMessage = "No recent data (last 24 hours)"
 	}
 
-	// Check data freshness (most recent log timestamp)
+	// Check data freshness (most recent log timestamp) - OTEL format
 	freshnessQuery := `
-		SELECT MAX(timestamp)
-		FROM logs
-		WHERE dataset = ?
+		SELECT MAX(Timestamp)
+		FROM otel_logs
+		WHERE ServiceName = ?
 	`
 
 	var lastTimestamp time.Time

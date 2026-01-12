@@ -16,8 +16,18 @@
 - 不允许修改结果，应该修改流程，而不是结果
 - 如果有问题可以尝试修复，如果有问题终止部署
 
-## 镜像构建流程
-### GitHub Actions 构建 (生产)
+## 镜像
+
+### 公共镜像需要拷贝到私有仓库
+在本机或者集群节点上使用 skopeo 将镜像拷贝到 quanzhenglong.com/edge/ 下
+```
+skopeo copy --all \
+      docker://docker.io/grafana/promtail:2.8.2 \
+      docker://quanzhenglong.com/edge/promtail:2.8.2
+```
+
+
+### 专有镜像需要通过 GitHub Actions 构建 (生产)
 - **触发**: push 到 main/develop/feature 分支或创建 tag
 - **输出**: `quanzhenglong/edge:${branch}-${commit_sha}`
 - **架构**: linux/amd64, linux/arm64

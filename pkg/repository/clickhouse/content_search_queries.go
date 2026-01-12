@@ -56,10 +56,10 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchQuery(req *request.LogQuer
 	// Build LIMIT and OFFSET
 	limitClause := fmt.Sprintf("LIMIT %d OFFSET %d", req.PageSize, req.Page*req.PageSize)
 
-	// Construct final query
+	// Construct final query (OTEL table)
 	query := fmt.Sprintf(`
 		%s
-		FROM logs
+		FROM otel_logs
 		WHERE %s
 		%s
 		%s
@@ -85,33 +85,35 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 		return "", nil, fmt.Errorf("failed to build WHERE clause for count: %w", err)
 	}
 
-	// Construct count query
+	// Construct count query (OTEL table)
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs
+		FROM otel_logs
 		WHERE %s
 	`, strings.Join(whereConditions, " AND "))
 
 	return strings.TrimSpace(query), args, nil
 }
 
-// buildSelectClause creates the SELECT clause with highlighting and relevance scoring
+// buildSelectClause creates the SELECT clause with highlighting and relevance scoring (OTEL format)
 func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.ContentSearchExpression) string {
 	baseFields := []string{
-		"timestamp",
-		"dataset",
-		"content",
-		"severity",
-		"container_id",
-		"container_name",
-		"pid",
-		"host_ip",
-		"host_name",
-		"k8s_namespace_name",
-		"k8s_pod_name",
-		"k8s_pod_uid",
-		"k8s_node_name",
-		"tags",
+		"Timestamp",
+		"TimestampTime",
+		"TraceId",
+		"SpanId",
+		"TraceFlags",
+		"SeverityText",
+		"SeverityNumber",
+		"ServiceName",
+		"Body",
+		"ResourceSchemaUrl",
+		"ResourceAttributes",
+		"ScopeSchemaUrl",
+		"ScopeName",
+		"ScopeVersion",
+		"ScopeAttributes",
+		"LogAttributes",
 	}
 
 	selectFields := baseFields
@@ -133,34 +135,36 @@ func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.Cont
 	return "SELECT " + strings.Join(selectFields, ",\n       ")
 }
 
-// buildWhereClause creates the WHERE clause with dataset, time, K8s, and content conditions
+// buildWhereClause creates the WHERE clause with ServiceName, time, K8s, and content conditions (OTEL format)
 func (b *ContentSearchQueryBuilder) buildWhereClause(req *request.LogQueryRequest, contentSearch *search.ContentSearchExpression) ([]string, []interface{}, error) {
 	var conditions []string
 	var args []interface{}
 
-	// Dataset condition (must be first for data isolation)
-	conditions = append(conditions, "dataset = ?")
-	args = append(args, req.Dataset)
+	// ServiceName condition (replaces dataset, for partition pruning)
+	if req.Dataset != "" {
+		conditions = append(conditions, "ServiceName = ?")
+		args = append(args, req.Dataset)
+	}
 
 	// Time range conditions
 	if req.StartTime != nil {
-		conditions = append(conditions, "timestamp >= ?")
+		conditions = append(conditions, "Timestamp >= ?")
 		args = append(args, *req.StartTime)
 	}
 	if req.EndTime != nil {
-		conditions = append(conditions, "timestamp <= ?")
+		conditions = append(conditions, "Timestamp <= ?")
 		args = append(args, *req.EndTime)
 	}
 
 	// Legacy filter handling for backward compatibility
 	if req.Filter != "" && len(contentSearch.Filters) == 0 {
-		conditions = append(conditions, "positionCaseInsensitive(content, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
 	// Severity filtering
 	if req.Severity != "" {
-		conditions = append(conditions, "severity = ?")
+		conditions = append(conditions, "SeverityText = ?")
 		args = append(args, req.Severity)
 	}
 
@@ -180,42 +184,42 @@ func (b *ContentSearchQueryBuilder) buildWhereClause(req *request.LogQueryReques
 	return conditions, args, nil
 }
 
-// buildK8sConditions creates K8s metadata filtering conditions
+// buildK8sConditions creates K8s metadata filtering conditions (OTEL format)
 func (b *ContentSearchQueryBuilder) buildK8sConditions(req *request.LogQueryRequest) ([]string, []interface{}) {
 	var conditions []string
 	var args []interface{}
 
-	// Legacy namespace support
+	// Namespace support (from LogAttributes)
 	if req.Namespace != "" {
-		conditions = append(conditions, "k8s_namespace_name = ?")
+		conditions = append(conditions, "LogAttributes['k8s.namespace.name'] = ?")
 		args = append(args, req.Namespace)
 	}
 
-	// Legacy pod name support
+	// Pod name support (from LogAttributes)
 	if req.PodName != "" {
-		conditions = append(conditions, "k8s_pod_name = ?")
+		conditions = append(conditions, "LogAttributes['k8s.pod.name'] = ?")
 		args = append(args, req.PodName)
 	}
 
-	// Node name support
+	// Node name support (from LogAttributes)
 	if req.NodeName != "" {
-		conditions = append(conditions, "k8s_node_name = ?")
+		conditions = append(conditions, "LogAttributes['k8s.node.name'] = ?")
 		args = append(args, req.NodeName)
 	}
 
-	// Container name support
+	// Container name support (from LogAttributes)
 	if req.ContainerName != "" {
-		conditions = append(conditions, "container_name = ?")
+		conditions = append(conditions, "LogAttributes['k8s.container.name'] = ?")
 		args = append(args, req.ContainerName)
 	}
 
-	// Host filtering
+	// Host filtering (from ResourceAttributes)
 	if req.HostIP != "" {
-		conditions = append(conditions, "host_ip = ?")
+		conditions = append(conditions, "ResourceAttributes['host.ip'] = ?")
 		args = append(args, req.HostIP)
 	}
 	if req.HostName != "" {
-		conditions = append(conditions, "host_name = ?")
+		conditions = append(conditions, "ResourceAttributes['host.name'] = ?")
 		args = append(args, req.HostName)
 	}
 
@@ -233,7 +237,7 @@ func (b *ContentSearchQueryBuilder) buildK8sConditions(req *request.LogQueryRequ
 	return conditions, args
 }
 
-// buildSingleK8sCondition creates a condition for a single K8s filter
+// buildSingleK8sCondition creates a condition for a single K8s filter (OTEL format)
 func (b *ContentSearchQueryBuilder) buildSingleK8sCondition(filter request.K8sFilter) (string, []interface{}) {
 	var condition string
 	var args []interface{}
@@ -241,9 +245,9 @@ func (b *ContentSearchQueryBuilder) buildSingleK8sCondition(filter request.K8sFi
 	fieldName := ""
 	switch filter.Field {
 	case "namespace":
-		fieldName = "k8s_namespace_name"
+		fieldName = "LogAttributes['k8s.namespace.name']"
 	case "pod":
-		fieldName = "k8s_pod_name"
+		fieldName = "LogAttributes['k8s.pod.name']"
 	default:
 		return "", nil
 	}
@@ -388,36 +392,36 @@ func (b *ContentSearchQueryBuilder) buildSingleFilterCondition(filter search.Con
 	switch filter.Type {
 	case search.ContentSearchExact:
 		if filter.CaseInsensitive {
-			condition = "positionCaseInsensitive(content, ?) > 0"
+			condition = "positionCaseInsensitive(Body, ?) > 0"
 		} else {
 			// Use position for exact matches - benefits from tokenbf_v1 index
-			condition = "position(content, ?) > 0"
+			condition = "position(Body, ?) > 0"
 		}
 		args = append(args, filter.Pattern)
 
 	case search.ContentSearchCaseInsensitive:
-		condition = "positionCaseInsensitive(content, ?) > 0"
+		condition = "positionCaseInsensitive(Body, ?) > 0"
 		args = append(args, filter.Pattern)
 
 	case search.ContentSearchRegex:
 		// Use match function for regex - can benefit from tokenbf_v1 for literal parts
-		condition = "match(content, ?)"
+		condition = "match(Body, ?)"
 		args = append(args, filter.Pattern)
 
 	case search.ContentSearchWildcard:
 		// Convert wildcard pattern to SQL LIKE pattern
 		likePattern := strings.ReplaceAll(strings.ReplaceAll(filter.Pattern, "*", "%"), "?", "_")
 		if filter.CaseInsensitive {
-			condition = "content ILIKE ?"
+			condition = "Body ILIKE ?"
 		} else {
-			condition = "content LIKE ?"
+			condition = "Body LIKE ?"
 		}
 		args = append(args, likePattern)
 
 	case search.ContentSearchPhrase:
 		// Use exact phrase matching with word boundaries
 		phrasePattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(filter.Pattern))
-		condition = "match(content, ?)"
+		condition = "match(Body, ?)"
 		args = append(args, phrasePattern)
 
 	case search.ContentSearchProximity:
@@ -431,7 +435,7 @@ func (b *ContentSearchQueryBuilder) buildSingleFilterCondition(filter search.Con
 		// This is a simplified version - a full implementation would use more sophisticated algorithms
 		var proximityConditions []string
 		for _, term := range terms {
-			proximityConditions = append(proximityConditions, fmt.Sprintf("position(content, '%s') > 0", strings.ReplaceAll(term, "'", "''")))
+			proximityConditions = append(proximityConditions, fmt.Sprintf("position(Body, '%s') > 0", strings.ReplaceAll(term, "'", "''")))
 		}
 
 		// For now, just ensure all terms are present (simple implementation)
@@ -456,20 +460,20 @@ func (b *ContentSearchQueryBuilder) buildHighlightingFields(contentSearch *searc
 		case search.ContentSearchExact, search.ContentSearchCaseInsensitive:
 			// Use replaceRegexpAll for highlighting
 			highlightExpr := fmt.Sprintf(
-				"replaceRegexpAll(content, '(?i)(%s)', '<mark class=\"highlight-%d\">$1</mark>') AS highlighted_content_%d",
+				"replaceRegexpAll(Body, '(?i)(%s)', '<mark class=\"highlight-%d\">$1</mark>') AS highlighted_content_%d",
 				regexp.QuoteMeta(filter.Pattern), i, i)
 			highlightFields = append(highlightFields, highlightExpr)
 
 		case search.ContentSearchRegex:
 			highlightExpr := fmt.Sprintf(
-				"replaceRegexpAll(content, '(%s)', '<mark class=\"highlight-%d\">$1</mark>') AS highlighted_content_%d",
+				"replaceRegexpAll(Body, '(%s)', '<mark class=\"highlight-%d\">$1</mark>') AS highlighted_content_%d",
 				filter.Pattern, i, i)
 			highlightFields = append(highlightFields, highlightExpr)
 
 		case search.ContentSearchPhrase:
 			phrasePattern := regexp.QuoteMeta(filter.Pattern)
 			highlightExpr := fmt.Sprintf(
-				"replaceRegexpAll(content, '(?i)(%s)', '<mark class=\"highlight-%d\">$1</mark>') AS highlighted_content_%d",
+				"replaceRegexpAll(Body, '(?i)(%s)', '<mark class=\"highlight-%d\">$1</mark>') AS highlighted_content_%d",
 				phrasePattern, i, i)
 			highlightFields = append(highlightFields, highlightExpr)
 		}
@@ -489,15 +493,15 @@ func (b *ContentSearchQueryBuilder) buildRelevanceScoring(contentSearch *search.
 		var scoreExpr string
 		switch filter.Type {
 		case search.ContentSearchExact, search.ContentSearchCaseInsensitive:
-			scoreExpr = fmt.Sprintf("(position(content, '%s') > 0 ? %f : 0)",
+			scoreExpr = fmt.Sprintf("(position(Body, '%s') > 0 ? %f : 0)",
 				strings.ReplaceAll(filter.Pattern, "'", "''"), filter.Weight)
 		case search.ContentSearchPhrase:
 			phrasePattern := strings.ReplaceAll(filter.Pattern, "'", "''")
-			scoreExpr = fmt.Sprintf("(match(content, '\\b%s\\b') ? %f : 0)",
+			scoreExpr = fmt.Sprintf("(match(Body, '\\b%s\\b') ? %f : 0)",
 				phrasePattern, filter.Weight)
 		case search.ContentSearchProximity:
 			// Higher score for proximity matches
-			scoreExpr = fmt.Sprintf("(position(content, '%s') > 0 ? %f : 0)",
+			scoreExpr = fmt.Sprintf("(position(Body, '%s') > 0 ? %f : 0)",
 				strings.ReplaceAll(strings.Fields(filter.Pattern)[0], "'", "''"), filter.Weight)
 		}
 		if scoreExpr != "" {
@@ -519,71 +523,77 @@ func (b *ContentSearchQueryBuilder) buildOrderByClause(contentSearch *search.Con
 	return "ORDER BY timestamp DESC"
 }
 
-// buildBasicQuery creates a basic query without content search
+// buildBasicQuery creates a basic query without content search (OTEL format)
 func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	var conditions []string
 	var args []interface{}
 
-	// Dataset condition (must be first)
-	conditions = append(conditions, "dataset = ?")
-	args = append(args, req.Dataset)
+	// ServiceName condition (replaces dataset)
+	if req.Dataset != "" {
+		conditions = append(conditions, "ServiceName = ?")
+		args = append(args, req.Dataset)
+	}
 
 	// Time range conditions
 	if req.StartTime != nil {
-		conditions = append(conditions, "timestamp >= ?")
+		conditions = append(conditions, "Timestamp >= ?")
 		args = append(args, *req.StartTime)
 	}
 	if req.EndTime != nil {
-		conditions = append(conditions, "timestamp <= ?")
+		conditions = append(conditions, "Timestamp <= ?")
 		args = append(args, *req.EndTime)
 	}
 
 	// Basic filter
 	if req.Filter != "" {
-		conditions = append(conditions, "positionCaseInsensitive(content, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
 	query := fmt.Sprintf(`
-		SELECT timestamp, dataset, content, severity, container_id, container_name, pid,
-		       host_ip, host_name, k8s_namespace_name, k8s_pod_name, k8s_pod_uid, k8s_node_name, tags
-		FROM logs
+		SELECT Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+		       SeverityText, SeverityNumber, ServiceName, Body,
+		       ResourceSchemaUrl, ResourceAttributes,
+		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes
+		FROM otel_logs
 		WHERE %s
-		ORDER BY timestamp DESC
+		ORDER BY Timestamp DESC
 		LIMIT %d OFFSET %d
 	`, strings.Join(conditions, " AND "), req.PageSize, req.Page*req.PageSize)
 
 	return strings.TrimSpace(query), args, nil
 }
 
-// buildBasicCountQuery creates a basic count query without content search
+// buildBasicCountQuery creates a basic count query without content search (OTEL format)
 func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	var conditions []string
 	var args []interface{}
 
-	// Dataset condition (must be first)
-	conditions = append(conditions, "dataset = ?")
-	args = append(args, req.Dataset)
+	// ServiceName condition (replaces dataset)
+	if req.Dataset != "" {
+		conditions = append(conditions, "ServiceName = ?")
+		args = append(args, req.Dataset)
+	}
 
 	// Time range conditions
 	if req.StartTime != nil {
-		conditions = append(conditions, "timestamp >= ?")
+		conditions = append(conditions, "Timestamp >= ?")
 		args = append(args, *req.StartTime)
 	}
 	if req.EndTime != nil {
-		conditions = append(conditions, "timestamp <= ?")
+		conditions = append(conditions, "Timestamp <= ?")
 		args = append(args, *req.EndTime)
 	}
 
 	// Basic filter
 	if req.Filter != "" {
-		conditions = append(conditions, "positionCaseInsensitive(content, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs
+		FROM otel_logs
 		WHERE %s
 	`, strings.Join(conditions, " AND "))
 

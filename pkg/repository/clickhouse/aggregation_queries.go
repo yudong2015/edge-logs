@@ -15,7 +15,7 @@ type AggregationQueryBuilder struct {
 // NewAggregationQueryBuilder creates a new aggregation query builder
 func NewAggregationQueryBuilder() *AggregationQueryBuilder {
 	return &AggregationQueryBuilder{
-		baseQuery: "SELECT %s FROM logs WHERE %s GROUP BY %s %s %s",
+		baseQuery: "SELECT %s FROM otel_logs WHERE %s GROUP BY %s %s %s",
 	}
 }
 
@@ -48,7 +48,7 @@ func (b *AggregationQueryBuilder) BuildAggregationQuery(req *request.Aggregation
 	limitClause := b.buildLimitClause(req)
 
 	// Assemble final query
-	query := fmt.Sprintf("SELECT %s FROM logs WHERE %s",
+	query := fmt.Sprintf("SELECT %s FROM otel_logs WHERE %s",
 		selectClause, strings.Join(whereConditions, " AND "))
 
 	if groupByClause != "" {
@@ -97,23 +97,23 @@ func (b *AggregationQueryBuilder) buildSelectClause(req *request.AggregationRequ
 	return strings.Join(selectParts, ", "), nil
 }
 
-// buildDimensionField creates dimension field expression
+// buildDimensionField creates dimension field expression (OTEL format)
 func (b *AggregationQueryBuilder) buildDimensionField(dim request.AggregationDimension) (string, error) {
 	switch dim.Type {
 	case request.DimensionSeverity:
-		return "severity", nil
+		return "SeverityText", nil
 	case request.DimensionNamespace:
-		return "k8s_namespace_name", nil
+		return "LogAttributes['k8s.namespace.name']", nil
 	case request.DimensionPodName:
-		return "k8s_pod_name", nil
+		return "LogAttributes['k8s.pod.name']", nil
 	case request.DimensionNodeName:
-		return "k8s_node_name", nil
+		return "LogAttributes['k8s.node.name']", nil
 	case request.DimensionHostName:
-		return "host_name", nil
+		return "ResourceAttributes['host.name']", nil
 	case request.DimensionContainerName:
-		return "container_name", nil
+		return "LogAttributes['k8s.container.name']", nil
 	case request.DimensionDataset:
-		return "dataset", nil
+		return "ServiceName", nil
 	case request.DimensionTimestamp:
 		return b.buildTimeBucketExpression(dim.TimeBucket)
 	default:
@@ -121,25 +121,25 @@ func (b *AggregationQueryBuilder) buildDimensionField(dim request.AggregationDim
 	}
 }
 
-// buildTimeBucketExpression creates time bucketing expression for ClickHouse
+// buildTimeBucketExpression creates time bucketing expression for ClickHouse (OTEL format)
 func (b *AggregationQueryBuilder) buildTimeBucketExpression(bucket request.TimeBucketInterval) (string, error) {
 	switch bucket {
 	case request.IntervalMinute:
-		return "toStartOfMinute(timestamp)", nil
+		return "toStartOfMinute(Timestamp)", nil
 	case request.Interval5Minutes:
-		return "toDateTime64(intDiv(toUInt64(toDateTime64(timestamp, 3)), 300) * 300, 3) AS time_bucket", nil
+		return "toDateTime64(intDiv(toUInt64(toDateTime64(Timestamp, 3)), 300) * 300, 3) AS time_bucket", nil
 	case request.Interval15Minutes:
-		return "toDateTime64(intDiv(toUInt64(toDateTime64(timestamp, 3)), 900) * 900, 3) AS time_bucket", nil
+		return "toDateTime64(intDiv(toUInt64(toDateTime64(Timestamp, 3)), 900) * 900, 3) AS time_bucket", nil
 	case request.IntervalHour:
-		return "toStartOfHour(timestamp)", nil
+		return "toStartOfHour(Timestamp)", nil
 	case request.Interval6Hours:
-		return "toDateTime64(intDiv(toUInt64(toDateTime64(timestamp, 3)), 21600) * 21600, 3) AS time_bucket", nil
+		return "toDateTime64(intDiv(toUInt64(toDateTime64(Timestamp, 3)), 21600) * 21600, 3) AS time_bucket", nil
 	case request.Interval12Hours:
-		return "toDateTime64(intDiv(toUInt64(toDateTime64(timestamp, 3)), 43200) * 43200, 3) AS time_bucket", nil
+		return "toDateTime64(intDiv(toUInt64(toDateTime64(Timestamp, 3)), 43200) * 43200, 3) AS time_bucket", nil
 	case request.IntervalDay:
-		return "toStartOfDay(timestamp)", nil
+		return "toStartOfDay(Timestamp)", nil
 	case request.IntervalWeek:
-		return "toStartOfWeek(timestamp)", nil
+		return "toStartOfWeek(Timestamp)", nil
 	default:
 		return "", fmt.Errorf("unsupported time bucket interval: %s", bucket)
 	}
@@ -180,54 +180,54 @@ func (b *AggregationQueryBuilder) buildAggregationFunction(fn request.Aggregatio
 	}
 }
 
-// buildWhereClause builds WHERE clause with filters
+// buildWhereClause builds WHERE clause with filters (OTEL format)
 func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationRequest) (string, []interface{}, error) {
 	var conditions []string
 	var args []interface{}
 
-	// Dataset filter
-	conditions = append(conditions, "dataset = ?")
+	// ServiceName filter (replaces dataset for partition pruning)
+	conditions = append(conditions, "ServiceName = ?")
 	args = append(args, req.Dataset)
 
 	// Time range filters
 	if req.StartTime != nil {
-		conditions = append(conditions, "timestamp >= ?")
+		conditions = append(conditions, "Timestamp >= ?")
 		args = append(args, *req.StartTime)
 	}
 	if req.EndTime != nil {
-		conditions = append(conditions, "timestamp <= ?")
+		conditions = append(conditions, "Timestamp <= ?")
 		args = append(args, *req.EndTime)
 	}
 
-	// Namespace filters
+	// Namespace filters (from LogAttributes map)
 	if len(req.Namespaces) > 0 {
 		placeholders := make([]string, len(req.Namespaces))
 		for i := range req.Namespaces {
 			placeholders[i] = "?"
 			args = append(args, req.Namespaces[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("k8s_namespace_name IN (%s)", strings.Join(placeholders, ", ")))
+		conditions = append(conditions, fmt.Sprintf("LogAttributes['k8s.namespace.name'] IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
-	// Pod name filters
+	// Pod name filters (from LogAttributes map)
 	if len(req.PodNames) > 0 {
 		placeholders := make([]string, len(req.PodNames))
 		for i := range req.PodNames {
 			placeholders[i] = "?"
 			args = append(args, req.PodNames[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("k8s_pod_name IN (%s)", strings.Join(placeholders, ", ")))
+		conditions = append(conditions, fmt.Sprintf("LogAttributes['k8s.pod.name'] IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
 	// Severity filter
 	if req.Severity != "" {
-		conditions = append(conditions, "severity = ?")
+		conditions = append(conditions, "SeverityText = ?")
 		args = append(args, req.Severity)
 	}
 
-	// Content search filter
+	// Content search filter (Body field in OTEL format)
 	if req.ContentSearch != "" {
-		conditions = append(conditions, "positionCaseInsensitive(content, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
 		args = append(args, req.ContentSearch)
 	}
 
@@ -297,23 +297,23 @@ func (b *AggregationQueryBuilder) buildLimitClause(req *request.AggregationReque
 	return ""
 }
 
-// getDimensionDefaultAlias gets default alias for dimension type
+// getDimensionDefaultAlias gets default alias for dimension type (OTEL format)
 func (b *AggregationQueryBuilder) getDimensionDefaultAlias(dimType request.AggregationDimensionType) string {
 	switch dimType {
 	case request.DimensionSeverity:
-		return "severity"
+		return "SeverityText"
 	case request.DimensionNamespace:
-		return "k8s_namespace_name"
+		return "namespace"
 	case request.DimensionPodName:
-		return "k8s_pod_name"
+		return "pod_name"
 	case request.DimensionNodeName:
-		return "k8s_node_name"
+		return "node_name"
 	case request.DimensionHostName:
 		return "host_name"
 	case request.DimensionContainerName:
 		return "container_name"
 	case request.DimensionDataset:
-		return "dataset"
+		return "ServiceName"
 	case request.DimensionTimestamp:
 		return "time_bucket"
 	default:
