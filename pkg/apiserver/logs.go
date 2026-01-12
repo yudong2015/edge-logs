@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -215,14 +214,9 @@ func (s *Server) executeLogQuery(ctx context.Context, startTime, endTime time.Ti
 	}
 
 	// Get database connection
-	dbInterface := s.repo.GetDB()
-	if dbInterface == nil {
+	db := s.repo.GetDB()
+	if db == nil {
 		return nil, 0, fmt.Errorf("database connection not available")
-	}
-
-	db, ok := dbInterface.(*sql.DB)
-	if !ok {
-		return nil, 0, fmt.Errorf("invalid database connection type")
 	}
 
 	// Build WHERE clause

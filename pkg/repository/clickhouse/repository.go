@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -331,7 +332,7 @@ func (r *ClickHouseRepository) Close() error {
 }
 
 // GetDB returns the underlying SQL database connection for direct queries
-func (r *ClickHouseRepository) GetDB() interface{} {
+func (r *ClickHouseRepository) GetDB() *sql.DB {
 	if r.cm != nil {
 		return r.cm.GetDB()
 	}
