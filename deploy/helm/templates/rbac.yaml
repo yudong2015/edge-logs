@@ -1,0 +1,33 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "edge-logs.fullname" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+rules:
+  # Read pods, namespaces for metadata enrichment
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  # Read deployments, daemonsets, statefulsets
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "edge-logs.fullname" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "edge-logs.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "edge-logs.serviceAccountName" . }}
+    namespace: {{ include "edge-logs.namespace" . }}
+{{- end }}

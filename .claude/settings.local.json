@@ -56,7 +56,15 @@
       "Bash(kubectl get:*)",
       "Bash(kubectl exec -n edge-logs deploy/edge-logs-apiserver -- curl -s \"http://localhost:8080/apis/log.theriseunion.io/v1alpha1/health\")",
       "Bash(kubectl run:*)",
-      "Bash(kubectl exec:*)"
+      "Bash(kubectl exec:*)",
+      "Bash(CLICKHOUSE_HOST=localhost go run:*)",
+      "Bash(settings\" errors. Switch to sql.OpenDB\\(clickhouse.Connector\\(options\\)\\)\nwhich is the correct way to create a sql.DB instance in clickhouse-go v2.\n\nThis fixes the API connection issue that prevented log queries from working.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(pkill:*)",
+      "Bash(ls:*)",
+      "Bash(echo '=== edge-installer 镜像列表 ===' ls -la /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/images/ __NEW_LINE_92407ba3b924f998__ echo echo '=== 镜像内容 ===' for tar in /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/images/*.tar)",
+      "Bash(grep:*)",
+      "Bash(echo '=== 1. edge-installer 文件列表 ===' find /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs -type f -exec ls -lh {})",
+      "Bash(echo '=== 3. 镜像配置对比 ===' echo echo 模板中的镜像引用: grep -n image: /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/templates/*.yaml)"
     ]
   }
 }

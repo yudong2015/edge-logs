@@ -1,0 +1,137 @@
+{{- if .Values.apiserver.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edge-logs.fullname" . }}-apiserver-config
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.apiserver.service.port }}
+      host: "0.0.0.0"
+      read_timeout: 30s
+      write_timeout: 30s
+
+    clickhouse:
+      host: "{{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local"
+      port: {{ .Values.apiserver.config.clickhouse.port }}
+      database: {{ .Values.apiserver.config.clickhouse.database | quote }}
+      username: {{ .Values.apiserver.config.clickhouse.username | quote }}
+      password: {{ .Values.apiserver.config.clickhouse.password | quote }}
+      tls: {{ .Values.apiserver.config.clickhouse.tls }}
+
+    kubernetes:
+      in_cluster: {{ .Values.apiserver.config.kubernetes.in_cluster }}
+      config_path: {{ .Values.apiserver.config.kubernetes.config_path | quote }}
+
+    logging:
+      level: {{ .Values.apiserver.config.logging.level | quote }}
+      format: {{ .Values.apiserver.config.logging.format | quote }}
+      enable_json: {{ .Values.apiserver.config.logging.enable_json }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-logs.apiserver.serviceName" . }}
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
+spec:
+  type: {{ .Values.apiserver.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.apiserver.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "edge-logs.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edge-logs.fullname" . }}-apiserver
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
+spec:
+  replicas: {{ .Values.apiserver.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "edge-logs.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: apiserver
+  template:
+    metadata:
+      labels:
+        {{- include "edge-logs.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: apiserver
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "edge-logs.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: apiserver
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "edge-logs.apiserver.image" . }}
+          imagePullPolicy: {{ .Values.apiserver.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.apiserver.service.port }}
+              protocol: TCP
+          env:
+            - name: CONFIG_FILE
+              value: "/config/config.yaml"
+            - name: CLICKHOUSE_HOST
+              value: "{{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local"
+            - name: CLICKHOUSE_PORT
+              value: "{{ .Values.apiserver.config.clickhouse.port }}"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          {{- if .Values.apiserver.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.apiserver.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.apiserver.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.apiserver.livenessProbe.periodSeconds }}
+          {{- end }}
+          {{- if .Values.apiserver.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.apiserver.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.apiserver.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.apiserver.readinessProbe.periodSeconds }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.apiserver.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "edge-logs.fullname" . }}-apiserver-config
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

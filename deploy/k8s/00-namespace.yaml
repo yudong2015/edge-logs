@@ -1,8 +1,0 @@
-# Namespace for edge-logs deployment
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ${NAMESPACE}
-  labels:
-    app.kubernetes.io/name: edge-logs
-    app.kubernetes.io/part-of: edge-logs
