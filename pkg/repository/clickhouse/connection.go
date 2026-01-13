@@ -74,14 +74,9 @@ func NewConnectionManager(cfg *config.ClickHouseConfig) (*ConnectionManager, err
 		return nil, MapClickHouseError(err, "connection_ping").Err
 	}
 
-	// Open SQL interface for connection pool management
-	sqlDB := clickhouse.OpenDB(options)
-
-	// Configure connection pool - MUST be set before first use
-	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-	sqlDB.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+	// Open SQL interface using connector - correct way for clickhouse-go v2
+	connector := clickhouse.Connector(options)
+	sqlDB := sql.OpenDB(connector)
 
 	// Verify SQL connection with ping
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
