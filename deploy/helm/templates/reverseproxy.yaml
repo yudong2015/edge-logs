@@ -1,0 +1,25 @@
+{{- if .Values.apiserver.enabled }}
+apiVersion: iam.theriseunion.io/v1alpha1
+kind: ReverseProxy
+metadata:
+  name: {{ include "edge-logs.fullname" . }}-apiserver-proxy
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
+  annotations:
+    openapi-endpoint: /openapi/v2
+spec:
+  matcher:
+    method: "*"
+    path: /oapis/log.theriseunion.io/v1alpha1/*
+  directives:
+    rewrite:
+      - from: ^/oapis/log\.theriseunion\.io/v1alpha1/(.*)$
+        to: /apis/log.theriseunion.io/v1alpha1/$1
+  upstream:
+    scheme: http
+    host: {{ include "edge-logs.apiserver.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local
+    port: {{ .Values.apiserver.service.port }}
+    insecureSkipVerify: false
+{{- end }}

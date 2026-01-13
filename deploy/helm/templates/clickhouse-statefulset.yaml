@@ -8,6 +8,20 @@ metadata:
     {{- include "edge-logs.labels" . | nindent 4 }}
     app.kubernetes.io/component: clickhouse
 data:
+  users.xml: |
+    <clickhouse>
+      <users>
+        <default>
+          <password></password>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <access_management>1</access_management>
+        </default>
+      </users>
+    </clickhouse>
   01_tables.sql: |
     -- ClickHouse schema for edge-logs
     CREATE DATABASE IF NOT EXISTS edge_logs;
@@ -138,12 +152,21 @@ spec:
               mountPath: /var/lib/clickhouse
             - name: init-scripts
               mountPath: /docker-entrypoint-initdb.d
+            - name: users-config
+              mountPath: /etc/clickhouse-server/users.d/users.xml
+              subPath: users.xml
           resources:
             {{- toYaml .Values.clickhouse.resources | nindent 12 }}
       volumes:
         - name: init-scripts
           configMap:
             name: {{ include "edge-logs.fullname" . }}-clickhouse-init
+        - name: users-config
+          configMap:
+            name: {{ include "edge-logs.fullname" . }}-clickhouse-init
+            items:
+              - key: users.xml
+                path: users.xml
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

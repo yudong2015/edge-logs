@@ -66,8 +66,10 @@ trigger:
 ## 关键集成
 
 - APIServer 注册为 `/apis/log.theriseunion.io/v1alpha1/*`
+- ReverseProxy 将 `/oapis/log.theriseunion.io/v1alpha1/*` 路由到 APIServer
 - 验证: `kubectl get apiservice | grep log.theriseunion.io`
-- ClickHouse 服务发现: `clickhouse.${NAMESPACE}.svc.cluster.local`
+- 验证 ReverseProxy: `kubectl get reverseproxy -n logging-system`
+- ClickHouse 服务发现: `clickhouse.logging-system.svc.cluster.local`
 
 ## 镜像管理
 
@@ -167,18 +169,18 @@ deploy/
 ```bash
 # 使用默认仓库部署
 helm install edge-logs ./deploy/helm \
-  -n edge-logs --create-namespace
+  -n logging-system --create-namespace
 
 # 使用私有仓库部署
 helm install edge-logs ./deploy/helm \
-  -n edge-logs --create-namespace \
+  -n logging-system --create-namespace \
   --set global.imageRegistry=my-registry.com/edge
 
 # 升级部署
-helm upgrade edge-logs ./deploy/helm -n edge-logs
+helm upgrade edge-logs ./deploy/helm -n logging-system
 
 # 卸载
-helm uninstall edge-logs -n edge-logs
+helm uninstall edge-logs -n logging-system
 ```
 
 ### 方式 2: 脚本部署
@@ -235,17 +237,17 @@ apiserver:
 
 ```bash
 # 1. 检查所有 Pod 状态
-kubectl get pods -n edge-logs
+kubectl get pods -n logging-system
 
 # 2. 检查服务
-kubectl get svc -n edge-logs
+kubectl get svc -n logging-system
 
 # 3. 测试 API
-kubectl port-forward svc/edge-logs-apiserver 8080:8080 -n edge-logs &
+kubectl port-forward svc/edge-logs-apiserver 8080:8080 -n logging-system &
 curl http://localhost:8080/api/v1alpha1/logs/query?limit=3
 
 # 4. 测试前端
-kubectl port-forward svc/edge-logs-frontend 8081:80 -n edge-logs &
+kubectl port-forward svc/edge-logs-frontend 8081:80 -n logging-system &
 curl http://localhost:8081/healthz
 ```
 

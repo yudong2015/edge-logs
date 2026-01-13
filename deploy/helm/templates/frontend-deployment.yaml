@@ -35,6 +35,9 @@ spec:
             - name: http
               containerPort: {{ .Values.frontend.service.port }}
               protocol: TCP
+          env:
+            - name: API_SERVER_HOST
+              value: "{{ include "edge-logs.apiserver.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local:{{ .Values.apiserver.service.port }}"
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

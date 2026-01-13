@@ -78,6 +78,12 @@ func NewConnectionManager(cfg *config.ClickHouseConfig) (*ConnectionManager, err
 	connector := clickhouse.Connector(options)
 	sqlDB := sql.OpenDB(connector)
 
+	// Apply connection pool settings to sql.DB
+	// Note: sql.OpenDB doesn't inherit settings from clickhouse.Options
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+
 	// Verify SQL connection with ping
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel2()

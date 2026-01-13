@@ -9,7 +9,7 @@ global:
   storageClass: ""
 
 # Namespace settings
-namespaceOverride: ""
+namespaceOverride: "logging-system"
 
 # APIServer configuration
 apiserver:
@@ -19,7 +19,7 @@ apiserver:
   image:
     registry: ""  # 使用global.imageRegistry
     repository: logs-apiserver
-    tag: "main"
+    tag: "main-c83c875"
     pullPolicy: IfNotPresent
 
   service:
@@ -72,7 +72,7 @@ frontend:
   image:
     registry: ""  # 使用global.imageRegistry
     repository: logs-frontend
-    tag: "main"
+    tag: "main-a0ced8c"
     pullPolicy: IfNotPresent
 
   service:
