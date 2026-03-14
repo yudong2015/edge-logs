@@ -58,54 +58,84 @@ const specialTimeRanges = [
  */
 const TimeRangePicker: React.FC<TimeRangePickerProps> = ({ form, value, onChange }) => {
   const [mode, setMode] = React.useState<'quick' | 'custom'>('quick')
+  const [selectedRange, setSelectedRange] = React.useState<Dayjs[]>([
+    dayjs().subtract(1, 'hour'),
+    dayjs()
+  ])
 
   // Initialize with default time range (last 1 hour)
   useEffect(() => {
     if (!value) {
       const endTime = dayjs()
       const startTime = dayjs().subtract(1, 'hours')
+      const range = [startTime, endTime]
+      setSelectedRange(range)
       form.setFieldsValue({
-        timeRange: [startTime, endTime],
+        timeRange: range,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
       })
+    } else {
+      // Sync with prop value if provided
+      setSelectedRange(value)
     }
   }, [])
 
   const handleQuickSelect = (preset: typeof timeRangePresets[0]) => {
+    console.log('Quick select clicked:', preset.label)
+
     const endTime = dayjs()
     const startTime = dayjs().subtract(preset.value, preset.unit as dayjs.ManipulateType)
+    const range = [startTime, endTime] as [Dayjs, Dayjs]
 
-    const timeRange: [Dayjs, Dayjs] = [startTime, endTime]
+    setSelectedRange(range)
     form.setFieldsValue({
-      timeRange,
+      timeRange: range,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
     })
 
-    onChange?.(timeRange)
+    console.log('Time range updated:', range)
+    onChange?.(range)
   }
 
   const handleSpecialRange = (range: typeof specialTimeRanges[0]) => {
-    const [startTime, endTime] = range.calculate()
+    console.log('Special range clicked:', range.label)
 
+    const [startTime, endTime] = range.calculate()
+    const timeRange = [startTime, endTime] as [Dayjs, Dayjs]
+
+    setSelectedRange(timeRange)
     form.setFieldsValue({
-      timeRange: [startTime, endTime],
+      timeRange: timeRange,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
     })
 
-    onChange?.([startTime, endTime])
+    console.log('Special range updated:', timeRange)
+    onChange?.(timeRange)
   }
 
   const handleCustomRangeChange = (dates: RangeValue) => {
+    console.log('Custom range changed:', dates)
+
     if (dates && dates[0] && dates[1]) {
+      const range = [dates[0], dates[1]] as [Dayjs, Dayjs]
+
+      setSelectedRange(range)
       form.setFieldsValue({
         startTime: dates[0].toISOString(),
         endTime: dates[1].toISOString(),
       })
-      onChange?.([dates[0], dates[1]])
+      onChange?.(range)
     }
+  }
+
+  // Check if a preset is currently selected
+  const isPresetSelected = (preset: typeof timeRangePresets[0]) => {
+    if (!selectedRange || selectedRange.length !== 2) return false
+    const expectedStart = dayjs().subtract(preset.value, preset.unit as dayjs.ManipulateType)
+    return selectedRange[0].isSame(expectedStart, 'minute')
   }
 
   return (
@@ -124,40 +154,81 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({ form, value, onChange
           value={mode}
           onChange={(e: RadioChangeEvent) => setMode(e.target.value as 'quick' | 'custom')}
           buttonStyle="solid"
-          style={{ marginBottom: '12px' }}
+          style={{ marginBottom: '12px', display: 'flex', gap: '8px' }}
         >
-          <Radio.Button value="quick">Quick Select</Radio.Button>
-          <Radio.Button value="custom">Custom Range</Radio.Button>
+          <Radio.Button
+            value="quick"
+            style={{
+              cursor: 'pointer',
+              backgroundColor: mode === 'quick' ? '#1677ff' : '#1f1f1f',
+              borderColor: '#424242',
+              color: 'rgba(255, 255, 255, 0.85)'
+            }}
+          >
+            Quick Select
+          </Radio.Button>
+          <Radio.Button
+            value="custom"
+            style={{
+              cursor: 'pointer',
+              backgroundColor: mode === 'custom' ? '#1677ff' : '#1f1f1f',
+              borderColor: '#424242',
+              color: 'rgba(255, 255, 255, 0.85)'
+            }}
+          >
+            Custom Range
+          </Radio.Button>
         </Radio.Group>
       </Form.Item>
 
       {mode === 'quick' && (
         <>
-          <Space wrap size={[8, 8]}>
+          <Space wrap size={[8, 8]} style={{ width: '100%' }}>
             {timeRangePresets.map((preset) => (
               <Button
                 key={preset.label}
                 size="small"
+                type={isPresetSelected(preset) ? 'primary' : 'default'}
                 onClick={() => handleQuickSelect(preset)}
+                style={{
+                  cursor: 'pointer',
+                  backgroundColor: isPresetSelected(preset) ? undefined : '#1f1f1f',
+                  borderColor: '#424242',
+                  color: 'rgba(255, 255, 255, 0.85)'
+                }}
               >
                 {preset.label}
               </Button>
             ))}
-            {specialTimeRanges.map((range) => (
-              <Button
-                key={range.label}
-                size="small"
-                onClick={() => handleSpecialRange(range)}
-              >
-                {range.label}
-              </Button>
-            ))}
+            {specialTimeRanges.map((range) => {
+              const isSelected = selectedRange &&
+                selectedRange.length === 2 &&
+                selectedRange[0].isSame(range.calculate()[0], 'minute') &&
+                selectedRange[1].isSame(range.calculate()[1], 'minute')
+
+              return (
+                <Button
+                  key={range.label}
+                  size="small"
+                  type={isSelected ? 'primary' : 'default'}
+                  onClick={() => handleSpecialRange(range)}
+                  style={{
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? undefined : '#1f1f1f',
+                    borderColor: '#424242',
+                    color: 'rgba(255, 255, 255, 0.85)'
+                  }}
+                >
+                  {range.label}
+                </Button>
+              )
+            })}
           </Space>
-          <div style={{ marginTop: '8px' }}>
+          <div style={{ marginTop: '12px', padding: '8px', background: '#141414', borderRadius: '4px' }}>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               Selected:{' '}
-              {form.getFieldValue('timeRange')?.[0]
-                ? `${form.getFieldValue('timeRange')[0].format('MMM DD, HH:mm')} - ${form.getFieldValue('timeRange')[1].format('MMM DD, HH:mm')}`
+              {selectedRange && selectedRange.length === 2
+                ? `${selectedRange[0].format('MMM DD, HH:mm')} - ${selectedRange[1].format('MMM DD, HH:mm')}`
                 : 'Last 1 hour'}
             </Text>
           </div>
