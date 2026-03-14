@@ -28,44 +28,57 @@ type DateRange struct {
 
 // DatasetExists checks if a dataset exists and contains data in ClickHouse (OTEL format)
 func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string) (bool, error) {
-	klog.V(4).InfoS("检查数据集是否存在", "dataset", dataset)
+	klog.InfoS("检查数据集是否存在 [DEBUG]",
+		"dataset", dataset,
+		"method", "file_path_extraction")
 
 	// Validate dataset parameter
 	if dataset == "" {
+		klog.ErrorS(fmt.Errorf("dataset parameter is empty"), "dataset_check_skipped")
 		return false, fmt.Errorf("dataset parameter cannot be empty")
 	}
 
-	// Check if dataset has any data in the otel_logs table (ServiceName replaces dataset)
+	// NEW: Extract namespace from __path__ instead of using ServiceName
+	// Path format: /var/log/containers/<pod-name>_<namespace>_<container>-<container-id>.log
 	query := `
 		SELECT COUNT(*)
 		FROM otel_logs
-		WHERE ServiceName = ?
+		WHERE mapContains(ResourceAttributes, '__path__')
+		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
 		LIMIT 1
 	`
+
+	klog.V(2).InfoS("执行数据集存在性查询 [DEBUG]",
+		"dataset", dataset,
+		"query", "SELECT COUNT(*) WHERE splitByString(path)[2] = dataset")
 
 	db := r.cm.GetDB()
 	var count int64
 	err := db.QueryRowContext(ctx, query, dataset).Scan(&count)
 	if err != nil {
-		klog.ErrorS(err, "数据集存在性检查失败", "dataset", dataset)
+		klog.ErrorS(err, "数据集存在性检查失败 [DEBUG]",
+			"dataset", dataset,
+			"query_failed", true)
 		return false, MapClickHouseError(err, "dataset_existence_check").Err
 	}
 
 	exists := count > 0
-	klog.V(4).InfoS("数据集存在性检查完成",
+	klog.InfoS("数据集存在性检查完成 [DEBUG]",
 		"dataset", dataset,
 		"exists", exists,
-		"log_count", count)
+		"log_count", count,
+		"query_type", "file_path_extraction")
 
 	return exists, nil
 }
 
 // GetDatasetStats retrieves comprehensive statistics for a dataset (OTEL format)
 func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset string) (*DatasetMetadata, error) {
-	klog.V(4).InfoS("获取数据集统计信息", "dataset", dataset)
+	klog.InfoS("获取数据集统计信息 [DEBUG]", "dataset", dataset)
 
 	// Validate dataset parameter
 	if dataset == "" {
+		klog.ErrorS(fmt.Errorf("dataset parameter is empty"), "stats_check_skipped")
 		return nil, fmt.Errorf("dataset parameter cannot be empty")
 	}
 
@@ -74,15 +87,20 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		Name: dataset,
 	}
 
-	// Get basic statistics: total logs, date range (OTEL format: Timestamp replaces timestamp)
+	// NEW: Extract namespace from __path__ instead of using ServiceName
 	statsQuery := `
 		SELECT
 			COUNT(*) as total_logs,
 			MIN(Timestamp) as earliest_time,
 			MAX(Timestamp) as latest_time
 		FROM otel_logs
-		WHERE ServiceName = ?
+		WHERE mapContains(ResourceAttributes, '__path__')
+		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
 	`
+
+	klog.InfoS("执行数据集统计查询 [DEBUG]",
+		"dataset", dataset,
+		"query_type", "file_path_extraction")
 
 	var earliest, latest time.Time
 	err := db.QueryRowContext(ctx, statsQuery, dataset).Scan(
@@ -91,9 +109,17 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		&latest,
 	)
 	if err != nil {
-		klog.ErrorS(err, "数据集基础统计查询失败", "dataset", dataset)
+		klog.ErrorS(err, "数据集基础统计查询失败 [DEBUG]",
+			"dataset", dataset,
+			"query_failed", true)
 		return nil, MapClickHouseError(err, "dataset_basic_stats").Err
 	}
+
+	klog.InfoS("数据集基础统计查询成功 [DEBUG]",
+		"dataset", dataset,
+		"total_logs", metadata.TotalLogs,
+		"earliest_time", earliest,
+		"latest_time", latest)
 
 	metadata.DateRange = DateRange{
 		Earliest: earliest,
@@ -147,12 +173,16 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]string, error) {
 	klog.V(4).InfoS("获取可用数据集列表")
 
-	// OTEL format: ServiceName replaces dataset
+	// Extract namespace from __path__ in ResourceAttributes
+	// Path format: /var/log/containers/<pod-name>_<namespace>_<container-name>-<container-id>.log
+	// ResourceAttributes is a Map(String, String) with key '__path__'
 	query := `
-		SELECT DISTINCT ServiceName
+		SELECT DISTINCT
+			splitByString('_', ResourceAttributes['__path__'])[2] as namespace
 		FROM otel_logs
-		WHERE ServiceName != ''
-		ORDER BY ServiceName
+		WHERE mapContains(ResourceAttributes, '__path__')
+		AND length(splitByString('_', ResourceAttributes['__path__'])) >= 3
+		ORDER BY namespace
 	`
 
 	db := r.cm.GetDB()
@@ -235,10 +265,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 	}
 
 	// Check recent data availability (last 24 hours) - OTEL format
+	// Extract namespace from __path__ instead of using empty ServiceName
 	recentDataQuery := `
 		SELECT COUNT(*)
 		FROM otel_logs
-		WHERE ServiceName = ?
+		WHERE mapContains(ResourceAttributes, '__path__')
+		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
 		AND Timestamp >= ?
 	`
 
@@ -259,10 +291,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 	}
 
 	// Check data freshness (most recent log timestamp) - OTEL format
+	// Extract namespace from __path__ instead of using empty ServiceName
 	freshnessQuery := `
 		SELECT MAX(Timestamp)
 		FROM otel_logs
-		WHERE ServiceName = ?
+		WHERE mapContains(ResourceAttributes, '__path__')
+		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
 	`
 
 	var lastTimestamp time.Time

@@ -36,7 +36,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	// Build base query with OTEL table field selection
 	kqb.baseQuery.WriteString(`
 		SELECT
-			Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+			Timestamp, TraceId, SpanId, TraceFlags,
 			SeverityText, SeverityNumber, ServiceName, Body,
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
@@ -48,9 +48,10 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	var whereConditions []string
 	var args []interface{}
 
-	// 1. ServiceName filter (replaces dataset, for partition pruning)
+	// 1. Dataset filter: extract namespace from __path__
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
 	if req.Dataset != "" {
-		whereConditions = append(whereConditions, "ServiceName = ?")
+		whereConditions = append(whereConditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		args = append(args, req.Dataset)
 	}
 
@@ -123,9 +124,10 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 	var whereConditions []string
 	var args []interface{}
 
-	// ServiceName filter (replaces dataset)
+	// Dataset filter: extract namespace from __path__
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
 	if req.Dataset != "" {
-		whereConditions = append(whereConditions, "ServiceName = ?")
+		whereConditions = append(whereConditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		args = append(args, req.Dataset)
 	}
 

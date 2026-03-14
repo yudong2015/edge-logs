@@ -229,7 +229,6 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 		var entry clickhouse.LogEntry
 		if err := rows.Scan(
 			&entry.Timestamp,
-			&entry.TimestampTime,
 			&entry.TraceID,
 			&entry.SpanID,
 			&entry.TraceFlags,

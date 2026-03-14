@@ -35,7 +35,7 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 	// Build base query with OTEL table field selection
 	tqb.baseQuery.WriteString(`
 		SELECT
-			Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+			Timestamp, TraceId, SpanId, TraceFlags,
 			SeverityText, SeverityNumber, ServiceName, Body,
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
@@ -43,9 +43,10 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 		FROM otel_logs
 	`)
 
-	// 1. ServiceName filtering for optimal partition pruning (replaces dataset)
+	// 1. Dataset filtering: extract namespace from __path__
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
 	if req.Dataset != "" {
-		tqb.AddCondition("ServiceName = ?", req.Dataset)
+		tqb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
 	}
 
 	// 2. Time range conditions with millisecond precision using toDateTime64
@@ -85,12 +86,17 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryRequest) (string, []interface{}, error) {
 	klog.V(4).InfoS("构建时间范围计数查询", "dataset", req.Dataset)
 
+	// CRITICAL: Reset builder state before building count query
+	// This prevents appending to the previous query's baseQuery
+	tqb.Reset()
+
 	tqb.dataset = req.Dataset
 	tqb.baseQuery.WriteString("SELECT count(*) FROM otel_logs")
 
 	// Same filtering logic as main query but without ordering/pagination
+	// Extract namespace from __path__ instead of using empty ServiceName
 	if req.Dataset != "" {
-		tqb.AddCondition("ServiceName = ?", req.Dataset)
+		tqb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
 	}
 
 	if req.StartTime != nil {
@@ -134,11 +140,11 @@ func (tqb *TimeQueryBuilder) AddTimeCondition(operator string, t time.Time) {
 // SetTimeOptimizedOrdering sets ordering optimized for time-range queries (OTEL format)
 func (tqb *TimeQueryBuilder) SetTimeOptimizedOrdering(direction string) {
 	// For time-range queries, Timestamp ordering is most important for performance
-	// ORDER BY matches primary key (ServiceName, TimestampTime, Timestamp)
+	// ORDER BY uses Timestamp (TimestampTime field doesn't exist in otel_logs table)
 	if strings.ToLower(direction) == "asc" {
-		tqb.SetOrderBy("ServiceName ASC, TimestampTime ASC, Timestamp ASC")
+		tqb.SetOrderBy("ServiceName ASC, Timestamp ASC")
 	} else {
-		tqb.SetOrderBy("ServiceName ASC, TimestampTime DESC, Timestamp DESC")
+		tqb.SetOrderBy("ServiceName ASC, Timestamp DESC")
 	}
 }
 

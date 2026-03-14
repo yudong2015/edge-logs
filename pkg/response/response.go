@@ -34,3 +34,9 @@ type HealthResponse struct {
 	Version string `json:"version"`
 	Service string `json:"service"`
 }
+
+// DatasetsResponse represents datasets list response
+type DatasetsResponse struct {
+	Datasets []string `json:"datasets"`
+	Count    int      `json:"count"`
+}

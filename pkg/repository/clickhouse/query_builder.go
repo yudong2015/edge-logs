@@ -42,7 +42,7 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 	// 1. Base query for OTEL logs table
 	qb.baseQuery.WriteString(`
 		SELECT
-			Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+			Timestamp, TraceId, SpanId, TraceFlags,
 			SeverityText, SeverityNumber, ServiceName, Body,
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
@@ -50,9 +50,10 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 		FROM otel_logs
 	`)
 
-	// 2. Service name filtering (replaces dataset, for partition pruning)
+	// 2. Service name filtering (extract from file path since ServiceName is empty)
 	if req.Dataset != "" {
-		qb.AddCondition("ServiceName = ?", req.Dataset)
+		// Extract namespace from __path__: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+		qb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
 	}
 
 	// 3. Time range filtering (leveraging ORDER BY optimization)
@@ -103,7 +104,8 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 	}
 
 	// 10. ORDER BY to match primary key for optimal performance
-	qb.SetOrderBy(fmt.Sprintf("ServiceName, TimestampTime, Timestamp %s", strings.ToUpper(req.Direction)))
+	// Note: TimestampTime field doesn't exist in otel_logs table, using Timestamp only
+	qb.SetOrderBy(fmt.Sprintf("ServiceName, Timestamp %s", strings.ToUpper(req.Direction)))
 
 	// 11. Pagination
 	if req.PageSize > 0 {
@@ -135,7 +137,8 @@ func (qb *QueryBuilder) BuildCountQuery(req *request.LogQueryRequest) (string, [
 
 	// Apply same filtering conditions as main query (excluding ORDER BY and LIMIT)
 	if req.Dataset != "" {
-		qb.AddCondition("ServiceName = ?", req.Dataset)
+		// Extract namespace from __path__: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+		qb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
 	}
 
 	if req.StartTime != nil {

@@ -99,7 +99,6 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.ContentSearchExpression) string {
 	baseFields := []string{
 		"Timestamp",
-		"TimestampTime",
 		"TraceId",
 		"SpanId",
 		"TraceFlags",
@@ -140,9 +139,10 @@ func (b *ContentSearchQueryBuilder) buildWhereClause(req *request.LogQueryReques
 	var conditions []string
 	var args []interface{}
 
-	// ServiceName condition (replaces dataset, for partition pruning)
+	// Dataset condition: extract namespace from __path__
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
 	if req.Dataset != "" {
-		conditions = append(conditions, "ServiceName = ?")
+		conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		args = append(args, req.Dataset)
 	}
 
@@ -528,9 +528,10 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 	var conditions []string
 	var args []interface{}
 
-	// ServiceName condition (replaces dataset)
+	// Dataset condition: extract namespace from __path__
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
 	if req.Dataset != "" {
-		conditions = append(conditions, "ServiceName = ?")
+		conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		args = append(args, req.Dataset)
 	}
 
@@ -551,7 +552,7 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 	}
 
 	query := fmt.Sprintf(`
-		SELECT Timestamp, TimestampTime, TraceId, SpanId, TraceFlags,
+		SELECT Timestamp, TraceId, SpanId, TraceFlags,
 		       SeverityText, SeverityNumber, ServiceName, Body,
 		       ResourceSchemaUrl, ResourceAttributes,
 		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes
@@ -569,9 +570,10 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 	var conditions []string
 	var args []interface{}
 
-	// ServiceName condition (replaces dataset)
+	// Dataset condition: extract namespace from __path__
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
 	if req.Dataset != "" {
-		conditions = append(conditions, "ServiceName = ?")
+		conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		args = append(args, req.Dataset)
 	}
 

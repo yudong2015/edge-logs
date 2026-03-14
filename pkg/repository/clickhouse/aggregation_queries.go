@@ -185,8 +185,9 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 	var conditions []string
 	var args []interface{}
 
-	// ServiceName filter (replaces dataset for partition pruning)
-	conditions = append(conditions, "ServiceName = ?")
+	// Dataset filter: extract namespace from __path__ (replaces ServiceName)
+	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 	args = append(args, req.Dataset)
 
 	// Time range filters

@@ -192,7 +192,7 @@ func testQueryBuilder(t *testing.T) {
 		query, args, err := qb.BuildLogQuery(req)
 		assert.NoError(t, err)
 		assert.Contains(t, query, "FROM otel_logs")
-		assert.Contains(t, query, "ServiceName = ?")
+		assert.Contains(t, query, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		assert.Contains(t, query, "ORDER BY")
 		assert.Contains(t, query, "LIMIT 100")
 		assert.Equal(t, "test-dataset", args[0])
@@ -225,7 +225,7 @@ func testQueryBuilder(t *testing.T) {
 
 		// Verify query structure (OTEL format)
 		assert.Contains(t, query, "FROM otel_logs")
-		assert.Contains(t, query, "ServiceName = ?")
+		assert.Contains(t, query, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		assert.Contains(t, query, "Timestamp >= ?")
 		assert.Contains(t, query, "Timestamp <= ?")
 		assert.Contains(t, query, "LogAttributes['k8s.namespace.name'] = ?")
@@ -256,7 +256,7 @@ func testQueryBuilder(t *testing.T) {
 
 		assert.Contains(t, query, "SELECT count(*)")
 		assert.Contains(t, query, "FROM otel_logs")
-		assert.Contains(t, query, "ServiceName = ?")
+		assert.Contains(t, query, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
 		assert.Contains(t, query, "LogAttributes['k8s.namespace.name'] = ?")
 		assert.Contains(t, query, "hasToken(Body, ?)")
 		assert.NotContains(t, query, "ORDER BY")
