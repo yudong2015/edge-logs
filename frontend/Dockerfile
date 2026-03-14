@@ -18,13 +18,20 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Build application
-RUN pnpm run build
+# Set VITE_API_BASE_URL to empty string to use relative paths (nginx proxy)
+# In production, frontend uses relative paths and nginx proxies to backend
+RUN VITE_API_BASE_URL="" pnpm run build
 
 # Stage 2: Production stage with nginx
 FROM nginx:alpine
 
 # Install curl for health check
 RUN apk add --no-cache curl
+
+# Create nginx cache directories with proper permissions
+RUN mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp /var/cache/nginx/scgi_temp && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chmod -R 755 /var/cache/nginx
 
 # Copy nginx config as template for envsubst processing
 # nginx:alpine's entrypoint will process .template files in /etc/nginx/templates/

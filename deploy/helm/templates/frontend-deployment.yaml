@@ -28,7 +28,15 @@ spec:
       containers:
         - name: frontend
           securityContext:
+            {{- with .Values.frontend.containerSecurityContext }}
+            {{- toYaml . | nindent 12 }}
+            {{- else }}
+            {{- with .Values.frontend.securityContext }}
+            {{- toYaml . | nindent 12 }}
+            {{- else }}
             {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- end }}
+            {{- end }}
           image: {{ include "edge-logs.frontend.image" . }}
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:

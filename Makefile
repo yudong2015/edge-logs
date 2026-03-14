@@ -18,8 +18,8 @@ GIT_COMMIT=$(shell git rev-parse --short HEAD)
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT) -X github.com/outpostos/edge-logs/pkg/apiserver.version=$(VERSION)"
 
 # Docker
-REGISTRY ?= ghcr.io/outpostos
-IMAGE_NAME=$(REGISTRY)/edge-logs
+REGISTRY ?= quanzhenglong.com
+IMAGE_NAME=$(REGISTRY)/edge/logs-apiserver
 TAG ?= $(VERSION)
 
 .PHONY: all build clean test coverage lint help

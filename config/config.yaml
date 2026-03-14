@@ -8,7 +8,7 @@ server:
   write_timeout: 30s
 
 clickhouse:
-  host: "localhost"
+  host: "edge-logs-clickhouse.logging-system.svc.cluster.local"
   port: 9000
   database: "edge_logs"
   username: "default"

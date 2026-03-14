@@ -4,7 +4,7 @@
 
 # Global settings
 global:
-  imageRegistry: "quanzhenglong.com/edge"
+  imageRegistry: "quanzhenglong.com"
   imagePullSecrets: []
   storageClass: ""
 
@@ -18,8 +18,8 @@ apiserver:
 
   image:
     registry: ""  # 使用global.imageRegistry
-    repository: logs-apiserver
-    tag: "main-c83c875"
+    repository: edge/logs-apiserver
+    tag: "main"
     pullPolicy: IfNotPresent
 
   service:
@@ -71,13 +71,35 @@ frontend:
 
   image:
     registry: ""  # 使用global.imageRegistry
-    repository: logs-frontend
-    tag: "main-a0ced8c"
+    repository: edge/logs-frontend
+    tag: "main"
     pullPolicy: IfNotPresent
 
   service:
     type: ClusterIP
     port: 80
+
+  # Override global securityContext for nginx
+  # Nginx needs to run as root initially, then drops privileges internally
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: null
+
+  # Container-level security context
+  containerSecurityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - NET_BIND_SERVICE
+        - CHOWN
+        - SETUID
+        - SETGID
 
   resources:
     requests:
@@ -93,7 +115,7 @@ clickhouse:
 
   image:
     registry: ""  # 使用global.imageRegistry
-    repository: clickhouse-server
+    repository: edge/clickhouse-server
     tag: "24.3"
     pullPolicy: IfNotPresent
 
@@ -126,7 +148,7 @@ otelCollector:
 
   image:
     registry: ""  # 使用global.imageRegistry
-    repository: opentelemetry-collector-contrib
+    repository: edge/opentelemetry-collector-contrib
     tag: "0.98.0"
     pullPolicy: IfNotPresent
 
@@ -144,9 +166,9 @@ ilogtail:
 
   image:
     registry: ""  # 使用global.imageRegistry
-    repository: ilogtail
+    repository: edge/ilogtail
     tag: "2.0.4"
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 
   resources:
     requests:
