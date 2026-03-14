@@ -23,6 +23,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [highlightKeyword, setHighlightKeyword] = useState('')
+  const [selectedDataset, setSelectedDataset] = useState<string>('edge-system') // Default to edge-system
+
+  /**
+   * Handle dataset selection change
+   */
+  const handleDatasetChange = (datasetName: string) => {
+    setSelectedDataset(datasetName)
+    console.log('Dataset changed to:', datasetName)
+  }
 
   /**
    * Handle query execution and results display
@@ -81,8 +90,12 @@ function App() {
     <ErrorBoundary>
       <ConfigProvider theme={darkTheme}>
         <AntdApp>
-          <MainLayout>
+          <MainLayout
+            onDatasetChange={handleDatasetChange}
+            selectedDataset={selectedDataset}
+          >
             <QueryForm
+              selectedDataset={selectedDataset}
               onQueryResults={handleQueryResults}
               onLoadingChange={handleLoadingChange}
             />

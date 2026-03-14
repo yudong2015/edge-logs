@@ -5,7 +5,15 @@
 
 import type { LogQueryParams, LogQueryResponse, ApiError, Dataset } from '@/types/api'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+// Backend datasets API response type
+interface DatasetsApiResponse {
+  datasets: string[]
+  count: number
+}
+
+// Use relative path to leverage nginx API proxy
+// In development, can override with VITE_API_BASE_URL for direct backend access
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '10000')
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 1000
@@ -65,10 +73,18 @@ export class LogQueryService {
 
     try {
       const url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets`
-      return await this.fetchWithRetry<Dataset[]>(url, {
+      const response = await this.fetchWithRetry<DatasetsApiResponse>(url, {
         method: 'GET',
         headers: this.getHeaders(),
       })
+
+      // Transform backend response (string array) to frontend Dataset objects
+      return response.datasets.map((datasetName) => ({
+        name: datasetName,
+        description: `Dataset: ${datasetName}`,
+        cluster: 'default',
+        environment: 'production',
+      }))
     } catch (error) {
       // Return default datasets if endpoint fails
       console.warn('Dataset endpoint not available, using default:', error)

@@ -3,7 +3,7 @@
  * Main form for constructing and executing log queries
  */
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   Form,
   Button,
@@ -25,6 +25,7 @@ import { queryHistoryService } from '@/services/queryHistoryService'
 const { Title } = Typography
 
 interface QueryFormProps {
+  selectedDataset: string
   onQueryResults: (results: any, params: LogQueryParams) => void
   onLoadingChange: (loading: boolean) => void
 }
@@ -44,10 +45,15 @@ interface FormValues {
  * Query form component
  * Provides comprehensive form for constructing log queries with time range selection and filters
  */
-const QueryForm: React.FC<QueryFormProps> = ({ onQueryResults, onLoadingChange }) => {
+const QueryForm: React.FC<QueryFormProps> = ({ selectedDataset, onQueryResults, onLoadingChange }) => {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [severity, setSeverity] = useState<string | undefined>()
+
+  // Update form when selectedDataset changes
+  useEffect(() => {
+    form.setFieldsValue({ dataset: selectedDataset })
+  }, [selectedDataset, form])
 
   const handleSeverityChange = (newSeverity: string | undefined) => {
     setSeverity(newSeverity)
@@ -142,7 +148,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onQueryResults, onLoadingChange }
           layout="vertical"
           onFinish={handleSubmit}
           initialValues={{
-            dataset: 'default',
+            dataset: selectedDataset,
             // Time range will be initialized by TimeRangePicker component
           }}
         >

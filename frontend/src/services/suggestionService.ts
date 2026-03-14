@@ -6,7 +6,8 @@
 
 import type { SuggestionResponse } from '@/types/api'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+// Use relative path to leverage nginx API proxy
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '10000')
 
 /**

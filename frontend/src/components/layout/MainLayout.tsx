@@ -14,13 +14,15 @@ const { Content, Sider } = Layout
 
 interface MainLayoutProps {
   children: React.ReactNode
+  onDatasetChange?: (datasetName: string) => void
+  selectedDataset?: string
 }
 
 /**
  * Main application layout component
  * Provides consistent structure with header, sidebar navigation, and content area
  */
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children, onDatasetChange, selectedDataset }) => {
   const [collapsed, setCollapsed] = React.useState(false)
 
   return (
@@ -48,7 +50,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               bottom: 0,
             }}
           >
-            <DatasetNav collapsed={collapsed} />
+            <DatasetNav
+              collapsed={collapsed}
+              onDatasetChange={onDatasetChange}
+              selectedDataset={selectedDataset}
+            />
           </Sider>
 
           {/* Main Content Area */}

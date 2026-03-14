@@ -19,17 +19,21 @@ const { Text } = Typography
 interface DatasetNavProps {
   collapsed: boolean
   onDatasetChange?: (datasetName: string) => void
+  selectedDataset?: string
 }
 
 /**
  * Dataset navigation sidebar component
  * Provides hierarchical dataset selection organized by environment and cluster
  */
-const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed, onDatasetChange }) => {
+const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed, onDatasetChange, selectedDataset: propSelectedDataset }) => {
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedDataset, setSelectedDataset] = useState<string>('default')
+  const [internalSelectedDataset, setInternalSelectedDataset] = useState<string>(propSelectedDataset || 'edge-system')
+
+  // Use prop-selected dataset if provided, otherwise use internal state
+  const selectedDataset = propSelectedDataset || internalSelectedDataset
 
   useEffect(() => {
     loadDatasets()
@@ -81,7 +85,10 @@ const DatasetNav: React.FC<DatasetNavProps> = ({ collapsed, onDatasetChange }) =
 
   const handleMenuSelect: MenuProps['onSelect'] = ({ key }) => {
     const datasetName = key as string
-    setSelectedDataset(datasetName)
+    // Update internal state only if prop is not controlled
+    if (!propSelectedDataset) {
+      setInternalSelectedDataset(datasetName)
+    }
     // Notify parent component of dataset change
     onDatasetChange?.(datasetName)
   }
