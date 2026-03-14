@@ -646,6 +646,25 @@ func (s *Service) DatasetExists(ctx context.Context, dataset string) (bool, erro
 	return false, fmt.Errorf("repository does not support dataset existence checking")
 }
 
+// ListAvailableDatasets returns a list of all available datasets
+func (s *Service) ListAvailableDatasets(ctx context.Context) ([]string, error) {
+	klog.V(4).InfoS("获取可用数据集列表")
+
+	// Query repository for available datasets
+	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
+		datasets, err := repo.ListAvailableDatasets(ctx)
+		if err != nil {
+			klog.ErrorS(err, "获取可用数据集列表失败")
+			return nil, fmt.Errorf("failed to list available datasets: %w", err)
+		}
+
+		klog.V(4).InfoS("获取可用数据集列表成功", "count", len(datasets))
+		return datasets, nil
+	}
+
+	return nil, fmt.Errorf("repository does not support listing datasets")
+}
+
 // validateAndParseContentSearch validates and parses content search parameters
 func (s *Service) validateAndParseContentSearch(req *request.LogQueryRequest) error {
 	// Handle legacy filter parameter for backward compatibility

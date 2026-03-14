@@ -85,6 +85,13 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Doc("健康检查").
 		Returns(http.StatusOK, "服务正常", responseWrapper.HealthResponse{}))
 
+	// Datasets list endpoint
+	ws.Route(ws.GET("/datasets").To(h.listDatasets).
+		Doc("获取可用数据集列表").
+		Notes("返回系统中所有可用的数据集名称列表，用于前端数据集选择器").
+		Returns(http.StatusOK, "查询成功", responseWrapper.DatasetsResponse{}).
+		Returns(http.StatusInternalServerError, "服务器内部错误", responseWrapper.ErrorResponse{}))
+
 	// Aggregation endpoint
 	ws.Route(ws.GET("/logdatasets/{dataset}/aggregation").To(h.queryAggregation).
 		Doc("聚合查询边缘计算日志").
@@ -110,7 +117,7 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 	container.Add(ws)
 
 	klog.InfoS("日志 API 处理器安装完成",
-		"endpoints", 3,
+		"endpoints", 4,
 		"base_path", "/apis/log.theriseunion.io/v1alpha1")
 }
 
@@ -136,11 +143,13 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 	}
 
 	// Validate dataset before executing query
+	klog.InfoS("[Handler] 开始数据集验证 [DEBUG]", "dataset", dataset)
 	if err := h.validateDataset(dataset); err != nil {
-		klog.ErrorS(err, "数据集验证失败", "dataset", dataset)
+		klog.ErrorS(err, "数据集验证失败 [DEBUG]", "dataset", dataset, "error", err)
 		h.handleDatasetError(resp, err, dataset)
 		return
 	}
+	klog.InfoS("[Handler] 数据集验证通过 [DEBUG]", "dataset", dataset)
 
 	// Execute dataset-scoped query through service layer
 	result, err := h.queryService.QueryLogsByDataset(req.Request.Context(), queryReq)
@@ -201,6 +210,29 @@ func (h *LogHandler) healthCheck(req *restful.Request, resp *restful.Response) {
 	}
 
 	resp.WriteHeaderAndEntity(http.StatusOK, healthResponse)
+}
+
+// listDatasets handles requests to list all available datasets
+func (h *LogHandler) listDatasets(req *restful.Request, resp *restful.Response) {
+	klog.InfoS("获取可用数据集列表请求")
+
+	// Query service for available datasets
+	datasets, err := h.queryService.ListAvailableDatasets(req.Request.Context())
+	if err != nil {
+		klog.ErrorS(err, "获取可用数据集列表失败")
+		h.writeErrorResponse(resp, http.StatusInternalServerError, fmt.Sprintf("获取数据集列表失败: %v", err))
+		return
+	}
+
+	klog.InfoS("获取可用数据集列表成功", "count", len(datasets))
+
+	// Build response
+	datasetsResponse := &responseWrapper.DatasetsResponse{
+		Datasets: datasets,
+		Count:    len(datasets),
+	}
+
+	resp.WriteHeaderAndEntity(http.StatusOK, datasetsResponse)
 }
 
 // parseQueryRequest parses HTTP request parameters into LogQueryRequest
@@ -352,20 +384,40 @@ func (h *LogHandler) mapErrorToStatusCode(err error) int {
 
 // validateDataset validates dataset parameter with comprehensive rules
 func (h *LogHandler) validateDataset(dataset string) error {
+	klog.InfoS("[Handler] validateDataset 开始 [DEBUG]",
+		"dataset", dataset)
+
 	// Basic format validation
 	if dataset == "" {
+		klog.InfoS("[Handler] validateDataset 失败 [DEBUG]", "error", "empty_dataset")
 		return NewDatasetValidationError(dataset, "dataset parameter is required")
 	}
 
 	// Use service layer for dataset existence checking
+	klog.InfoS("[Handler] 调用 DatasetExists 检查 [DEBUG]", "dataset", dataset)
 	exists, err := h.queryService.DatasetExists(context.Background(), dataset)
 	if err != nil {
+		klog.ErrorS(err, "[Handler] DatasetExists 调用失败 [DEBUG]",
+			"dataset", dataset,
+			"error", err)
 		return NewDatasetValidationError(dataset, fmt.Sprintf("failed to validate dataset: %v", err))
 	}
 
+	klog.InfoS("[Handler] DatasetExists 检查结果 [DEBUG]",
+		"dataset", dataset,
+		"exists", exists)
+
 	if !exists {
+		klog.InfoS("[Handler] 数据集不存在 [DEBUG]",
+			"dataset", dataset,
+			"exists", exists,
+			"action", "returning_404")
 		return NewDatasetNotFoundError(dataset)
 	}
+
+	klog.InfoS("[Handler] validateDataset 成功 [DEBUG]",
+		"dataset", dataset,
+		"exists", exists)
 
 	return nil
 }
