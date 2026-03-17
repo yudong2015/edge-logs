@@ -7,7 +7,7 @@ metadata:
   name: ilogtail-config
   namespace: {{ include "edge-logs.namespace" . }}
 data:
-  # iLogtail configuration for OTLP output
+  # iLogtail configuration for Kubernetes container logs (JSON format)
   user_yaml_config.d: |
     enable: true
     inputs:
@@ -17,28 +17,50 @@ data:
         ExcludeFiles:
           - ilogtail.*\.log
           - otel-collector.*\.log
+
     processors:
-      # Parse JSON log content
+      # ============================================================
+      # CRITICAL: Processors in execution order
+      # ============================================================
+
+      # Processor 1: Extract log field from Kubernetes JSON container logs
+      # Input: {"log":"...","stream":"stdout","time":"..."}
+      # Output: content field with the actual log message
       - Type: processor_json
         SourceKey: content
         KeepSource: false
         ExpandDepth: 1
         ExpandConnector: ""
         KeepSourceIfParseError: true
-      # Extract log message from parsed JSON
+
+      # Processor 2: Rename 'log' field to 'content'
       - Type: processor_rename
         SourceKeys: ["log"]
         DestKeys: ["content"]
         KeepSourceIfNotExist: true
-      # Add K8s metadata as resource attributes
+
+      # Processor 3: Extract content from JSON fields (for logs already in JSON)
+      - Type: processor_rename
+        SourceKeys: ["msg", "message"]
+        DestKeys: ["content", "content"]
+        KeepSourceIfNotExist: true
+
+      # Processor 4: Rename level to severity_text for JSON logs
+      - Type: processor_rename
+        SourceKeys: ["level"]
+        DestKeys: ["severity_text"]
+        KeepSourceIfNotExist: true
+
+      # Processor 5: Add service name
       - Type: processor_add_fields
         Fields:
           service.name: "edge-logs"
+
     flushers:
       # OTLP gRPC output to OTEL Collector
       - Type: flusher_otlp
         Logs:
-          Endpoint: "otel-collector.{{ include "edge-logs.namespace" . }}.svc.cluster.local:4317"
+          Endpoint: "otel-collector.logging-system.svc.cluster.local:4317"
           Timeout: 10000
           WaitForReady: true
           # Resource attributes mapping
@@ -59,10 +81,12 @@ data:
               Key: "k8s.container.name"
             - From: "_container_id_"
               Key: "container.id"
-        Retry:
-          MaxCount: 5
-          InitialDelay: 1000
-          MaxDelay: 30000
+            - From: "_namespace_"
+              Key: "service.name"
+          Retry:
+            MaxCount: 5
+            InitialDelay: 1000
+            MaxDelay: 30000
 
 ---
 apiVersion: apps/v1

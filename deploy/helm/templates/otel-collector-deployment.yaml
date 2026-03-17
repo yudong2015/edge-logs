@@ -24,6 +24,24 @@ data:
         limit_mib: 150
         spike_limit_mib: 30
 
+      # Transform processor to map iLogtail fields to OTEL format
+      transform:
+        logs:
+          # Map severity_text from body attributes to OTEL severity
+          contexts:
+            - key: severity_text
+              from: attribute
+              action: extract
+          # Map service name from body to resource attributes
+          body:
+            - key: service.name
+              pattern: ^(.*)$
+              action: extract
+          resource:
+            - key: service.name
+              pattern: ^(.*)$
+              action: upsert
+
       # Batch processing for efficiency
       batch:
         timeout: 1s
@@ -87,14 +105,14 @@ data:
       pipelines:
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, k8sattributes, resource, batch]
+          processors: [memory_limiter, transform, k8sattributes, resource, batch]
           exporters: [clickhouse, debug]
 
       telemetry:
         logs:
           level: "info"
         metrics:
-          address: 0.0.0.0:8888
+          level: "basic"
 
 ---
 # ServiceAccount for OTEL Collector (needed for k8sattributes processor)

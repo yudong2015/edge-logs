@@ -147,9 +147,9 @@ otelCollector:
   replicaCount: 1
 
   image:
-    registry: ""  # 使用global.imageRegistry
-    repository: edge/opentelemetry-collector-contrib
-    tag: "0.98.0"
+    registry: "docker.io"  # 明确使用 Docker Hub
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.147.0"
     pullPolicy: IfNotPresent
 
   resources:
