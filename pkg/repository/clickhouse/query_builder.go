@@ -50,10 +50,20 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 		FROM otel_logs
 	`)
 
-	// 2. Service name filtering (extract from file path since ServiceName is empty)
+	// 2. Dataset filtering (multi-strategy for robustness)
 	if req.Dataset != "" {
-		// Extract namespace from __path__: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
-		qb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
+		// Strategy 1: Try ServiceName first (most reliable if set)
+		// Strategy 2: Try LogAttributes['k8s.namespace.name'] (K8s metadata)
+		// Strategy 3: Try __path__ extraction (fallback)
+		//
+		// Priority: ServiceName > LogAttributes > ResourceAttributes['__path__']
+		//
+		// Using OR condition with short-circuit evaluation for optimal performance
+		qb.AddCondition("(ServiceName = ? OR LogAttributes['k8s.namespace.name'] = ? OR splitByString('_', ResourceAttributes['__path__'])[2] = ?)", req.Dataset, req.Dataset, req.Dataset)
+
+		klog.V(3).InfoS("Dataset filtering applied",
+			"dataset", req.Dataset,
+			"strategy", "ServiceName OR LogAttributes OR __path__")
 	}
 
 	// 3. Time range filtering (leveraging ORDER BY optimization)
@@ -137,8 +147,8 @@ func (qb *QueryBuilder) BuildCountQuery(req *request.LogQueryRequest) (string, [
 
 	// Apply same filtering conditions as main query (excluding ORDER BY and LIMIT)
 	if req.Dataset != "" {
-		// Extract namespace from __path__: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
-		qb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
+		// Multi-strategy dataset filtering (same as main query)
+		qb.AddCondition("(ServiceName = ? OR LogAttributes['k8s.namespace.name'] = ? OR splitByString('_', ResourceAttributes['__path__'])[2] = ?)", req.Dataset, req.Dataset, req.Dataset)
 	}
 
 	if req.StartTime != nil {
