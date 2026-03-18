@@ -227,6 +227,8 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 	var results []clickhouse.LogEntry
 	for rows.Next() {
 		var entry clickhouse.LogEntry
+		var k8sPodName, k8sNamespaceName, k8sContainerName, k8sContainerID string
+
 		if err := rows.Scan(
 			&entry.Timestamp,
 			&entry.TraceID,
@@ -243,10 +245,21 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 			&entry.ScopeVersion,
 			&entry.ScopeAttributes,
 			&entry.LogAttributes,
+			&k8sPodName,
+			&k8sNamespaceName,
+			&k8sContainerName,
+			&k8sContainerID,
 		); err != nil {
 			klog.ErrorS(err, "结果扫描失败", "dataset", req.Dataset)
 			return nil, 0, MapClickHouseError(err, "scan_results").Err
 		}
+
+		// Set extracted K8s fields
+		entry.K8sPodName = k8sPodName
+		entry.K8sNamespaceName = k8sNamespaceName
+		entry.K8sContainerName = k8sContainerName
+		entry.K8sContainerID = k8sContainerID
+
 		results = append(results, entry)
 	}
 

@@ -113,6 +113,15 @@ func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.Cont
 		"ScopeVersion",
 		"ScopeAttributes",
 		"LogAttributes",
+		// K8s metadata extracted from __path__
+		// Path format: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
+		// Extract pod name (last element after splitting by '/')
+		"arrayElement(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]), length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))) as k8s_pod_name",
+		"splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name",
+		// Extract container name (everything before the last '-' followed by 64-char hash and .log)
+		"substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69) as k8s_container_name",
+		// Extract 64-char hash (before .log)
+		"substring(splitByString('_', ResourceAttributes['__path__'])[3], length(splitByString('_', ResourceAttributes['__path__'])[3]) - 68, 64) as k8s_container_id",
 	}
 
 	selectFields := baseFields
@@ -555,7 +564,11 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 		SELECT Timestamp, TraceId, SpanId, TraceFlags,
 		       SeverityText, SeverityNumber, ServiceName, Body,
 		       ResourceSchemaUrl, ResourceAttributes,
-		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes
+		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes,
+		       splitByString('_', ResourceAttributes['__path__'])[1] as k8s_pod_name,
+		       splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name,
+		       splitByString('_', ResourceAttributes['__path__'])[3] as k8s_container_name,
+		       substring(ResourceAttributes['__path__'], length(ResourceAttributes['__path__']) - position(ResourceAttributes['__path__'], '_') - 4) as k8s_container_id
 		FROM otel_logs
 		WHERE %s
 		ORDER BY Timestamp DESC

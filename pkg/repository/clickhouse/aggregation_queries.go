@@ -98,20 +98,25 @@ func (b *AggregationQueryBuilder) buildSelectClause(req *request.AggregationRequ
 }
 
 // buildDimensionField creates dimension field expression (OTEL format)
+// Falls back to parsing __path__ when K8s metadata is not available in LogAttributes
 func (b *AggregationQueryBuilder) buildDimensionField(dim request.AggregationDimension) (string, error) {
 	switch dim.Type {
 	case request.DimensionSeverity:
 		return "SeverityText", nil
 	case request.DimensionNamespace:
-		return "LogAttributes['k8s.namespace.name']", nil
+		// Try LogAttributes first, fallback to __path__ parsing
+		return "coalesce(LogAttributes['k8s.namespace.name'], splitByString('_', ResourceAttributes['__path__'])[2])", nil
 	case request.DimensionPodName:
-		return "LogAttributes['k8s.pod.name']", nil
+		// Try LogAttributes first, fallback to __path__ parsing
+		// Extract pod name from path: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
+		return "coalesce(LogAttributes['k8s.pod.name'], arrayElement(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]), length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))))", nil
 	case request.DimensionNodeName:
 		return "LogAttributes['k8s.node.name']", nil
 	case request.DimensionHostName:
 		return "ResourceAttributes['host.name']", nil
 	case request.DimensionContainerName:
-		return "LogAttributes['k8s.container.name']", nil
+		// Try LogAttributes first, fallback to __path__ parsing
+		return "coalesce(LogAttributes['k8s.container.name'], substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69))", nil
 	case request.DimensionDataset:
 		return "ServiceName", nil
 	case request.DimensionTimestamp:
@@ -200,24 +205,37 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 		args = append(args, *req.EndTime)
 	}
 
-	// Namespace filters (from LogAttributes map)
+	// Namespace filters (from LogAttributes OR parsed from __path__)
 	if len(req.Namespaces) > 0 {
 		placeholders := make([]string, len(req.Namespaces))
 		for i := range req.Namespaces {
 			placeholders[i] = "?"
 			args = append(args, req.Namespaces[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("LogAttributes['k8s.namespace.name'] IN (%s)", strings.Join(placeholders, ", ")))
+		// Use OR condition to check both LogAttributes and __path__ parsing
+		namespaceList := strings.Join(placeholders, ", ")
+		conditions = append(conditions, fmt.Sprintf("(LogAttributes['k8s.namespace.name'] IN (%s) OR splitByString('_', ResourceAttributes['__path__'])[2] IN (%s))", namespaceList, namespaceList))
+		// Duplicate args for the second condition
+		for _, ns := range req.Namespaces {
+			args = append(args, ns)
+		}
 	}
 
-	// Pod name filters (from LogAttributes map)
+	// Pod name filters (from LogAttributes OR parsed from __path__)
 	if len(req.PodNames) > 0 {
 		placeholders := make([]string, len(req.PodNames))
 		for i := range req.PodNames {
 			placeholders[i] = "?"
 			args = append(args, req.PodNames[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("LogAttributes['k8s.pod.name'] IN (%s)", strings.Join(placeholders, ", ")))
+		// Use OR condition to check both LogAttributes and __path__ parsing
+		podList := strings.Join(placeholders, ", ")
+		podPathExpr := "arrayElement(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]), length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1])))"
+		conditions = append(conditions, fmt.Sprintf("(LogAttributes['k8s.pod.name'] IN (%s) OR %s IN (%s))", podList, podPathExpr, podList))
+		// Duplicate args for the second condition
+		for _, pod := range req.PodNames {
+			args = append(args, pod)
+		}
 	}
 
 	// Severity filter

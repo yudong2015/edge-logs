@@ -74,12 +74,15 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 		qb.AddCondition("Timestamp <= ?", *req.EndTime)
 	}
 
-	// 4. K8s metadata filtering (from LogAttributes map)
+	// 4. K8s metadata filtering (from LogAttributes map OR parsed from __path__)
+	// Priority: LogAttributes > __path__ parsing
 	if req.Namespace != "" {
-		qb.AddCondition("LogAttributes['k8s.namespace.name'] = ?", req.Namespace)
+		qb.AddCondition("(LogAttributes['k8s.namespace.name'] = ? OR splitByString('_', ResourceAttributes['__path__'])[2] = ?)", req.Namespace, req.Namespace)
 	}
 	if req.PodName != "" {
-		qb.AddCondition("LogAttributes['k8s.pod.name'] = ?", req.PodName)
+		// Extract pod name from __path__: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
+		// We need to extract the filename first, then get the pod name
+		qb.AddCondition("(LogAttributes['k8s.pod.name'] = ? OR splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1])[length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))] = ?)", req.PodName, req.PodName)
 	}
 	if req.NodeName != "" {
 		qb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
