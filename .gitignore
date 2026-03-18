@@ -28,9 +28,19 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
 
 # Binary executables
+apiserver
 edge-logs-apiserver
+edge-logs-apiserver_unix
 edge-logs-controller
+edge-logs-frontend-latest-amd64.tar
+edge-logs-frontend-latest.tar
+edge-logs-main-amd64.tar
+edge-logs-main.tar
+
+
+frontend/node_module
+frontend/edge-logs-frontend-latest-fixed.tar
