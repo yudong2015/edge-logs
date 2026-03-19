@@ -51,26 +51,24 @@ func (l *LogEntry) GetSeverity() string {
 	return l.SeverityText
 }
 
-// GetK8sNamespace extracts namespace from extracted fields or LogAttributes
+// GetK8sNamespace extracts namespace from ResourceAttributes (data collection stage)
 func (l *LogEntry) GetK8sNamespace() string {
-	// Prefer extracted field from SQL query
-	if l.K8sNamespaceName != "" {
-		return l.K8sNamespaceName
+	// Priority: ResourceAttributes (from transform processor) > LogAttributes
+	if ns, ok := l.ResourceAttributes["k8s.namespace.name"]; ok && ns != "" {
+		return ns
 	}
-	// Fallback to LogAttributes
 	if ns, ok := l.LogAttributes["k8s.namespace.name"]; ok {
 		return ns
 	}
 	return ""
 }
 
-// GetK8sPodName extracts pod name from extracted fields or LogAttributes
+// GetK8sPodName extracts pod name from ResourceAttributes (data collection stage)
 func (l *LogEntry) GetK8sPodName() string {
-	// Prefer extracted field from SQL query
-	if l.K8sPodName != "" {
-		return l.K8sPodName
+	// Priority: ResourceAttributes (from transform processor) > LogAttributes
+	if pod, ok := l.ResourceAttributes["k8s.pod.name"]; ok && pod != "" {
+		return pod
 	}
-	// Fallback to LogAttributes
 	if pod, ok := l.LogAttributes["k8s.pod.name"]; ok {
 		return pod
 	}
@@ -85,13 +83,12 @@ func (l *LogEntry) GetK8sNodeName() string {
 	return ""
 }
 
-// GetK8sContainerName extracts container name from extracted field or LogAttributes
+// GetK8sContainerName extracts container name from ResourceAttributes (data collection stage)
 func (l *LogEntry) GetK8sContainerName() string {
-	// Prefer extracted field from SQL query
-	if l.K8sContainerName != "" {
-		return l.K8sContainerName
+	// Priority: ResourceAttributes (from transform processor) > LogAttributes
+	if container, ok := l.ResourceAttributes["k8s.container.name"]; ok && container != "" {
+		return container
 	}
-	// Fallback to LogAttributes
 	if container, ok := l.LogAttributes["k8s.container.name"]; ok {
 		return container
 	}

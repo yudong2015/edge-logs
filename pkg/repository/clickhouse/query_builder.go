@@ -50,20 +50,15 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 		FROM otel_logs
 	`)
 
-	// 2. Dataset filtering (multi-strategy for robustness)
+	// 2. Dataset filtering (using K8s metadata from ResourceAttributes)
 	if req.Dataset != "" {
 		// Strategy 1: Try ServiceName first (most reliable if set)
-		// Strategy 2: Try LogAttributes['k8s.namespace.name'] (K8s metadata)
-		// Strategy 3: Try __path__ extraction (fallback)
-		//
-		// Priority: ServiceName > LogAttributes > ResourceAttributes['__path__']
-		//
-		// Using OR condition with short-circuit evaluation for optimal performance
-		qb.AddCondition("(ServiceName = ? OR LogAttributes['k8s.namespace.name'] = ? OR splitByString('_', ResourceAttributes['__path__'])[2] = ?)", req.Dataset, req.Dataset, req.Dataset)
+		// Strategy 2: Try ResourceAttributes['k8s.namespace.name'] (K8s metadata from transform processor)
+		qb.AddCondition("(ServiceName = ? OR ResourceAttributes['k8s.namespace.name'] = ?)", req.Dataset, req.Dataset)
 
 		klog.V(3).InfoS("Dataset filtering applied",
 			"dataset", req.Dataset,
-			"strategy", "ServiceName OR LogAttributes OR __path__")
+			"strategy", "ServiceName OR ResourceAttributes")
 	}
 
 	// 3. Time range filtering (leveraging ORDER BY optimization)
@@ -74,15 +69,12 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 		qb.AddCondition("Timestamp <= ?", *req.EndTime)
 	}
 
-	// 4. K8s metadata filtering (from LogAttributes map OR parsed from __path__)
-	// Priority: LogAttributes > __path__ parsing
+	// 4. K8s metadata filtering (from ResourceAttributes)
 	if req.Namespace != "" {
-		qb.AddCondition("(LogAttributes['k8s.namespace.name'] = ? OR splitByString('_', ResourceAttributes['__path__'])[2] = ?)", req.Namespace, req.Namespace)
+		qb.AddCondition("ResourceAttributes['k8s.namespace.name'] = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		// Extract pod name from __path__: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
-		// We need to extract the filename first, then get the pod name
-		qb.AddCondition("(LogAttributes['k8s.pod.name'] = ? OR splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1])[length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))] = ?)", req.PodName, req.PodName)
+		qb.AddCondition("ResourceAttributes['k8s.pod.name'] = ?", req.PodName)
 	}
 	if req.NodeName != "" {
 		qb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
