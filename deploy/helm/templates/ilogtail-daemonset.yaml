@@ -1,13 +1,12 @@
 ---
-# iLogtail DaemonSet for log collection
-# Sends logs to OTEL Collector via OTLP gRPC (ADR-001)
+# iLogtail DaemonSet for log collection with K8s metadata
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ilogtail-config
   namespace: {{ include "edge-logs.namespace" . }}
 data:
-  # iLogtail configuration for Kubernetes container logs (JSON format)
+  # iLogtail configuration for Kubernetes container logs with K8s metadata extraction
   user_yaml_config.d: |
     enable: true
     inputs:
@@ -19,13 +18,7 @@ data:
           - otel-collector.*\.log
 
     processors:
-      # ============================================================
-      # CRITICAL: Processors in execution order
-      # ============================================================
-
       # Processor 1: Extract log field from Kubernetes JSON container logs
-      # Input: {"log":"...","stream":"stdout","time":"..."}
-      # Output: content field with the actual log message
       - Type: processor_json
         SourceKey: content
         KeepSource: false
@@ -57,32 +50,40 @@ data:
           service.name: "edge-logs"
 
     flushers:
-      # OTLP gRPC output to OTEL Collector
+      # OTLP gRPC output to OTEL Collector with K8s metadata
       - Type: flusher_otlp
         Logs:
           Endpoint: "otel-collector.logging-system.svc.cluster.local:4317"
           Timeout: 10000
           WaitForReady: true
-          # Resource attributes mapping
+          # Resource attributes mapping - extract from environment and file path
           ResourceAttributes:
+            # Basic host info
             - From: "__host_name__"
               Key: "host.name"
             - From: "__host_ip__"
               Key: "host.ip"
-            - From: "_node_name_"
+            # K8s metadata from environment variables
+            - From: "NODE_NAME"
               Key: "k8s.node.name"
-            - From: "_namespace_"
-              Key: "k8s.namespace.name"
-            - From: "_pod_name_"
+            # Extract from log file path: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+            # Example: /var/log/containers/apiserver-774f7fb6d5-5mkpv_edge-system_edge-apiserver-43b3b...log
+            - From: "__path__"
               Key: "k8s.pod.name"
-            - From: "_pod_uid_"
-              Key: "k8s.pod.uid"
-            - From: "_container_name_"
+              # Extract pod name: match after "containers/" until first "_"
+              Regex: "containers/([^/_]+)_"
+            - From: "__path__"
+              Key: "k8s.namespace.name"
+              # Extract namespace: match between first and second "_" (after pod name)
+              Regex: "^[^/_]+_([^/_]+)_"
+            - From: "__path__"
               Key: "k8s.container.name"
-            - From: "_container_id_"
+              # Extract container name: match between second "_" and first "-"
+              Regex: "^[^/_]+_[^/_]+_([^/-]+)-"
+            - From: "__path__"
               Key: "container.id"
-            - From: "_namespace_"
-              Key: "service.name"
+              # Extract container ID: match after "-" until ".log"
+              Regex: "-([a-f0-9]{64})\\.log$"
           Retry:
             MaxCount: 5
             InitialDelay: 1000
@@ -137,6 +138,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

@@ -1,6 +1,5 @@
 ---
-# OpenTelemetry Collector for Edge Logs
-# Receives OTLP logs from iLogtail and exports to ClickHouse (ADR-001)
+# OpenTelemetry Collector for Edge Logs with K8s metadata extraction
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,7 +8,6 @@ metadata:
 data:
   otel-collector-config.yaml: |
     receivers:
-      # Receive OTLP logs from iLogtail
       otlp:
         protocols:
           grpc:
@@ -18,67 +16,42 @@ data:
             endpoint: 0.0.0.0:4318
 
     processors:
-      # Memory limiter to prevent OOM
       memory_limiter:
         check_interval: 1s
         limit_mib: 150
         spike_limit_mib: 30
 
-      # Transform processor to map iLogtail fields to OTEL format
+      # Transform processor to extract K8s metadata from __path__
+      # Use resource context to extract and add to resource attributes
       transform:
-        logs:
-          # Map severity_text from body attributes to OTEL severity
-          contexts:
-            - key: severity_text
-              from: attribute
-              action: extract
-          # Map service name from body to resource attributes
-          body:
-            - key: service.name
-              pattern: ^(.*)$
-              action: extract
-          resource:
-            - key: service.name
-              pattern: ^(.*)$
-              action: upsert
+        log_statements:
+          # First, extract from resource context to modify resource attributes
+          - context: resource
+            statements:
+              # Extract pod name: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
+              # Split by "/" to get filename, then split by "_" and take first part (pod name)
+              - set(attributes["k8s.pod.name"], Split(Split(attributes["__path__"], "/")[4], "_")[0])
+              # Extract namespace name
+              - set(attributes["k8s.namespace.name"], Split(attributes["__path__"], "_")[1])
+              # Extract container name
+              - set(attributes["k8s.container.name"], Split(Split(attributes["__path__"], "_")[2], "-")[0])
 
-      # Batch processing for efficiency
       batch:
         timeout: 1s
         send_batch_size: 1024
         send_batch_max_size: 2048
 
-      # K8s attributes processor for enriching logs with K8s metadata
-      k8sattributes:
-        auth_type: "serviceAccount"
-        passthrough: false
-        extract:
-          metadata:
-            - k8s.namespace.name
-            - k8s.pod.name
-            - k8s.pod.uid
-            - k8s.node.name
-            - k8s.container.name
-            - container.id
-        pod_association:
-          - sources:
-              - from: resource_attribute
-                name: k8s.pod.uid
-          - sources:
-              - from: resource_attribute
-                name: k8s.pod.name
-              - from: resource_attribute
-                name: k8s.namespace.name
-
-      # Resource processor to add service metadata
       resource:
         attributes:
           - key: deployment.environment
             value: "production"
             action: upsert
+          # DEBUG: Test if resource processor works
+          - key: test.resource.field
+            value: "test-value"
+            action: insert
 
     exporters:
-      # ClickHouse exporter - uses OTEL standard schema
       clickhouse:
         endpoint: tcp://{{ include "edge-logs.clickhouse.serviceName" . }}:9000
         database: edge_logs
@@ -90,12 +63,10 @@ data:
           max_interval: 30s
           max_elapsed_time: 300s
 
-      # Debug logging (set to info in production)
       debug:
-        verbosity: basic
+        verbosity: normal
 
     extensions:
-      # Health check extension
       health_check:
         endpoint: 0.0.0.0:13133
 
@@ -105,7 +76,7 @@ data:
       pipelines:
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, transform, k8sattributes, resource, batch]
+          processors: [memory_limiter, transform, resource, batch]
           exporters: [clickhouse, debug]
 
       telemetry:
@@ -115,7 +86,6 @@ data:
           level: "basic"
 
 ---
-# ServiceAccount for OTEL Collector (needed for k8sattributes processor)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -123,7 +93,6 @@ metadata:
   namespace: {{ include "edge-logs.namespace" . }}
 
 ---
-# ClusterRole for reading K8s metadata
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -132,12 +101,8 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "namespaces", "nodes"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["apps"]
-    resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
-    verbs: ["get", "list", "watch"]
 
 ---
-# ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -182,31 +147,15 @@ spec:
           ports:
             - name: otlp-grpc
               containerPort: 4317
-              protocol: TCP
             - name: otlp-http
               containerPort: 4318
-              protocol: TCP
             - name: health
               containerPort: 13133
-              protocol: TCP
             - name: metrics
               containerPort: 8888
-              protocol: TCP
           env:
             - name: GOMEMLIMIT
               value: "160MiB"
-            - name: K8S_NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: K8S_POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: K8S_POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
           resources:
             limits:
               memory: "256Mi"
@@ -252,15 +201,9 @@ spec:
   ports:
     - name: otlp-grpc
       port: 4317
-      protocol: TCP
-      targetPort: otlp-grpc
     - name: otlp-http
       port: 4318
-      protocol: TCP
-      targetPort: otlp-http
     - name: metrics
       port: 8888
-      protocol: TCP
-      targetPort: metrics
   selector:
     app: otel-collector

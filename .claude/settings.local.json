@@ -64,7 +64,23 @@
       "Bash(echo '=== edge-installer 镜像列表 ===' ls -la /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/images/ __NEW_LINE_92407ba3b924f998__ echo echo '=== 镜像内容 ===' for tar in /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/images/*.tar)",
       "Bash(grep:*)",
       "Bash(echo '=== 1. edge-installer 文件列表 ===' find /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs -type f -exec ls -lh {})",
-      "Bash(echo '=== 3. 镜像配置对比 ===' echo echo 模板中的镜像引用: grep -n image: /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/templates/*.yaml)"
+      "Bash(echo '=== 3. 镜像配置对比 ===' echo echo 模板中的镜像引用: grep -n image: /Users/neov/src/github.com/edgekeel/apiserver/edge-installer/edge-logs/templates/*.yaml)",
+      "Bash(kubectl logs:*)",
+      "Bash(helm status:*)",
+      "Bash(helm upgrade:*)",
+      "Bash(helm rollback:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl:*)",
+      "Bash(helm install:*)",
+      "Bash(ssh:*)",
+      "Bash(rsync:*)",
+      "Bash(docker buildx:*)",
+      "Bash(cp:*)",
+      "Bash(docker build:*)",
+      "Bash(chmod:*)",
+      "Bash(./long_term_solution_deploy.sh)",
+      "Bash(kubectl exec -n logging-system edge-logs-clickhouse-0 -- clickhouse-client --query \":*)"
     ]
   }
 }
