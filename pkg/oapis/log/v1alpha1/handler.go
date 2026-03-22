@@ -371,6 +371,11 @@ func (h *LogHandler) mapErrorToStatusCode(err error) int {
 		strings.Contains(errMsg, "不存在"):
 		return http.StatusNotFound
 
+	case strings.Contains(errMsg, "context canceled"),
+		strings.Contains(errMsg, "context deadline exceeded"):
+		// Return 408 Request Timeout for query timeouts
+		return http.StatusRequestTimeout
+
 	case strings.Contains(errMsg, "connection"),
 		strings.Contains(errMsg, "timeout"),
 		strings.Contains(errMsg, "connection refused"):
@@ -459,9 +464,25 @@ func (h *LogHandler) handleServiceError(resp *restful.Response, err error, datas
 
 	// Handle general service errors
 	statusCode := h.mapErrorToStatusCode(err)
-	message := fmt.Sprintf("查询失败: %v", err)
+	message := h.formatErrorMessage(err, statusCode, dataset)
 
 	h.writeErrorResponse(resp, statusCode, message)
+}
+
+// formatErrorMessage formats error messages based on error type and status code
+func (h *LogHandler) formatErrorMessage(err error, statusCode int, dataset string) string {
+	switch statusCode {
+	case http.StatusRequestTimeout:
+		return fmt.Sprintf("查询超时: 数据集 [%s] 的查询执行时间过长，请缩小时间范围或添加更多过滤条件后重试", dataset)
+	case http.StatusServiceUnavailable:
+		return fmt.Sprintf("服务暂时不可用: %v", err)
+	case http.StatusNotFound:
+		return fmt.Sprintf("未找到数据集: [%s]", dataset)
+	case http.StatusBadRequest:
+		return fmt.Sprintf("请求参数错误: %v", err)
+	default:
+		return fmt.Sprintf("查询失败: %v", err)
+	}
 }
 
 // isK8sError checks if an error is K8s-related

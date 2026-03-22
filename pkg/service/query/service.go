@@ -525,19 +525,11 @@ func (s *Service) validateDatasetWithExistence(ctx context.Context, dataset stri
 
 // enrichResponseWithDataset adds dataset metadata to response
 func (s *Service) enrichResponseWithDataset(ctx context.Context, response *response.LogQueryResponse, dataset string) error {
-	// Try to get dataset metadata if repository supports it
-	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
-		metadata, err := repo.GetDatasetStats(ctx, dataset)
-		if err != nil {
-			return fmt.Errorf("failed to get dataset metadata: %w", err)
-		}
-
-		// Add dataset information to response (this will be implemented when we enhance response structure)
-		klog.V(4).InfoS("数据集元数据获取成功",
-			"dataset", dataset,
-			"total_logs", metadata.TotalLogs,
-			"partition_count", metadata.PartitionCount)
-	}
+	// Skip dataset metadata enrichment for performance
+	// GetDatasetStats is too slow and blocks the main query
+	// TODO: Implement cached metadata or background refresh
+	klog.V(4).InfoS("跳过数据集元数据增强以提升性能",
+		"dataset", dataset)
 
 	return nil
 }
