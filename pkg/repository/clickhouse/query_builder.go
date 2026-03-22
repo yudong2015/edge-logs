@@ -47,7 +47,7 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes
-		FROM otel_logs
+		FROM logs
 	`)
 
 	// 2. Dataset filtering (using K8s metadata from ResourceAttributes)
@@ -88,9 +88,9 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 		qb.AddCondition("ResourceAttributes['host.name'] = ?", req.HostName)
 	}
 
-	// 6. Container filtering (from LogAttributes map)
+	// 6. Container filtering (from ResourceAttributes map)
 	if req.ContainerName != "" {
-		qb.AddCondition("LogAttributes['k8s.container.name'] = ?", req.ContainerName)
+		qb.AddCondition("ResourceAttributes['k8s.container.name'] = ?", req.ContainerName)
 	}
 
 	// 7. Severity filtering
@@ -109,8 +109,8 @@ func (qb *QueryBuilder) BuildLogQuery(req *request.LogQueryRequest) (string, []i
 	}
 
 	// 10. ORDER BY to match primary key for optimal performance
-	// Note: TimestampTime field doesn't exist in otel_logs table, using Timestamp only
-	qb.SetOrderBy(fmt.Sprintf("ServiceName, Timestamp %s", strings.ToUpper(req.Direction)))
+	// Use TimestampTime for efficient partitioning, then Timestamp for precision
+	qb.SetOrderBy(fmt.Sprintf("ServiceName, TimestampTime, Timestamp %s", strings.ToUpper(req.Direction)))
 
 	// 11. Pagination
 	if req.PageSize > 0 {
@@ -138,12 +138,12 @@ func (qb *QueryBuilder) BuildCountQuery(req *request.LogQueryRequest) (string, [
 	qb.dataset = req.Dataset
 
 	// Base count query for OTEL logs table
-	qb.baseQuery.WriteString("SELECT count(*) FROM otel_logs")
+	qb.baseQuery.WriteString("SELECT count(*) FROM logs")
 
 	// Apply same filtering conditions as main query (excluding ORDER BY and LIMIT)
 	if req.Dataset != "" {
-		// Multi-strategy dataset filtering (same as main query)
-		qb.AddCondition("(ServiceName = ? OR LogAttributes['k8s.namespace.name'] = ? OR splitByString('_', ResourceAttributes['__path__'])[2] = ?)", req.Dataset, req.Dataset, req.Dataset)
+		// Use same strategy as main query - avoid splitByString for performance
+		qb.AddCondition("(ServiceName = ? OR ResourceAttributes['k8s.namespace.name'] = ?)", req.Dataset, req.Dataset)
 	}
 
 	if req.StartTime != nil {
@@ -154,13 +154,13 @@ func (qb *QueryBuilder) BuildCountQuery(req *request.LogQueryRequest) (string, [
 	}
 
 	if req.Namespace != "" {
-		qb.AddCondition("LogAttributes['k8s.namespace.name'] = ?", req.Namespace)
+		qb.AddCondition("ResourceAttributes['k8s.namespace.name'] = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		qb.AddCondition("LogAttributes['k8s.pod.name'] = ?", req.PodName)
+		qb.AddCondition("ResourceAttributes['k8s.pod.name'] = ?", req.PodName)
 	}
 	if req.NodeName != "" {
-		qb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
+		qb.AddCondition("ResourceAttributes['k8s.node.name'] = ?", req.NodeName)
 	}
 
 	if req.HostIP != "" {

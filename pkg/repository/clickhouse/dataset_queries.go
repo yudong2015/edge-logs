@@ -30,7 +30,7 @@ type DateRange struct {
 func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string) (bool, error) {
 	klog.InfoS("检查数据集是否存在 [DEBUG]",
 		"dataset", dataset,
-		"method", "file_path_extraction")
+		"method", "resource_attributes_extraction")
 
 	// Validate dataset parameter
 	if dataset == "" {
@@ -38,38 +38,38 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 		return false, fmt.Errorf("dataset parameter cannot be empty")
 	}
 
-	// NEW: Extract namespace from __path__ instead of using ServiceName
-	// Path format: /var/log/containers/<pod-name>_<namespace>_<container>-<container-id>.log
+	// Use ResourceAttributes for fast dataset filtering with LIMIT 1 for performance
+	// We only need to know if the dataset exists, not the exact count
 	query := `
-		SELECT COUNT(*)
-		FROM otel_logs
-		WHERE mapContains(ResourceAttributes, '__path__')
-		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
+		SELECT 1
+		FROM logs
+		WHERE ServiceName = ?
+		   OR ResourceAttributes['k8s.namespace.name'] = ?
 		LIMIT 1
 	`
 
 	klog.V(2).InfoS("执行数据集存在性查询 [DEBUG]",
 		"dataset", dataset,
-		"query", "SELECT COUNT(*) WHERE splitByString(path)[2] = dataset")
+		"query", "SELECT 1 WHERE ServiceName OR ResourceAttributes LIMIT 1")
 
 	db := r.cm.GetDB()
-	var count int64
-	err := db.QueryRowContext(ctx, query, dataset).Scan(&count)
+	var exists int
+	err := db.QueryRowContext(ctx, query, dataset, dataset).Scan(&exists)
 	if err != nil {
-		klog.ErrorS(err, "数据集存在性检查失败 [DEBUG]",
+		// If query fails (timeout, etc.), assume dataset exists to allow query to proceed
+		klog.ErrorS(err, "数据集存在性检查失败 [DEBUG]，假设数据集存在以允许查询继续",
 			"dataset", dataset,
 			"query_failed", true)
-		return false, MapClickHouseError(err, "dataset_existence_check").Err
+		return true, nil
 	}
 
-	exists := count > 0
+	existsBool := exists == 1
 	klog.InfoS("数据集存在性检查完成 [DEBUG]",
 		"dataset", dataset,
-		"exists", exists,
-		"log_count", count,
-		"query_type", "file_path_extraction")
+		"exists", existsBool,
+		"query_type", "resource_attributes_extraction")
 
-	return exists, nil
+	return existsBool, nil
 }
 
 // GetDatasetStats retrieves comprehensive statistics for a dataset (OTEL format)
@@ -87,23 +87,23 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		Name: dataset,
 	}
 
-	// NEW: Extract namespace from __path__ instead of using ServiceName
+	// Use ResourceAttributes for fast dataset filtering (same strategy as main query)
 	statsQuery := `
 		SELECT
 			COUNT(*) as total_logs,
 			MIN(Timestamp) as earliest_time,
 			MAX(Timestamp) as latest_time
-		FROM otel_logs
-		WHERE mapContains(ResourceAttributes, '__path__')
-		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
+		FROM logs
+		WHERE ServiceName = ?
+		   OR ResourceAttributes['k8s.namespace.name'] = ?
 	`
 
 	klog.InfoS("执行数据集统计查询 [DEBUG]",
 		"dataset", dataset,
-		"query_type", "file_path_extraction")
+		"query_type", "resource_attributes_extraction")
 
 	var earliest, latest time.Time
-	err := db.QueryRowContext(ctx, statsQuery, dataset).Scan(
+	err := db.QueryRowContext(ctx, statsQuery, dataset, dataset).Scan(
 		&metadata.TotalLogs,
 		&earliest,
 		&latest,
@@ -127,11 +127,11 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	}
 	metadata.LastUpdated = latest
 
-	// Get partition count from system.parts (OTEL table: otel_logs)
+	// Get partition count from system.parts (unified logs table)
 	partitionQuery := `
 		SELECT COUNT(DISTINCT partition) as partition_count
 		FROM system.parts
-		WHERE table = 'otel_logs'
+		WHERE table = 'logs'
 		AND database = ?
 		AND active = 1
 	`
@@ -143,11 +143,11 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		metadata.PartitionCount = 0
 	}
 
-	// Get data size from system.parts (OTEL table: otel_logs)
+	// Get data size from system.parts (unified logs table)
 	sizeQuery := `
 		SELECT COALESCE(SUM(bytes_on_disk), 0) as data_size_bytes
 		FROM system.parts
-		WHERE table = 'otel_logs'
+		WHERE table = 'logs'
 		AND database = ?
 		AND active = 1
 	`
@@ -179,7 +179,7 @@ func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]str
 	query := `
 		SELECT DISTINCT
 			splitByString('_', ResourceAttributes['__path__'])[2] as namespace
-		FROM otel_logs
+		FROM logs
 		WHERE mapContains(ResourceAttributes, '__path__')
 		AND length(splitByString('_', ResourceAttributes['__path__'])) >= 3
 		ORDER BY namespace
@@ -264,20 +264,19 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		return health, nil
 	}
 
-	// Check recent data availability (last 24 hours) - OTEL format
-	// Extract namespace from __path__ instead of using empty ServiceName
+	// Check recent data availability (last 24 hours) - use ResourceAttributes for fast filtering
 	recentDataQuery := `
 		SELECT COUNT(*)
-		FROM otel_logs
-		WHERE mapContains(ResourceAttributes, '__path__')
-		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
+		FROM logs
+		WHERE ServiceName = ?
+		   OR ResourceAttributes['k8s.namespace.name'] = ?
 		AND Timestamp >= ?
 	`
 
 	since := time.Now().Add(-24 * time.Hour)
 	var recentCount int64
 	db := r.cm.GetDB()
-	err = db.QueryRowContext(ctx, recentDataQuery, dataset, since).Scan(&recentCount)
+	err = db.QueryRowContext(ctx, recentDataQuery, dataset, dataset, since).Scan(&recentCount)
 	if err != nil {
 		health.Status = "warning"
 		health.ErrorMessage = fmt.Sprintf("Failed to check recent data: %v", err)
@@ -290,17 +289,16 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		health.ErrorMessage = "No recent data (last 24 hours)"
 	}
 
-	// Check data freshness (most recent log timestamp) - OTEL format
-	// Extract namespace from __path__ instead of using empty ServiceName
+	// Check data freshness (most recent log timestamp) - use ResourceAttributes for fast filtering
 	freshnessQuery := `
 		SELECT MAX(Timestamp)
-		FROM otel_logs
-		WHERE mapContains(ResourceAttributes, '__path__')
-		AND splitByString('_', ResourceAttributes['__path__'])[2] = ?
+		FROM logs
+		WHERE ServiceName = ?
+		   OR ResourceAttributes['k8s.namespace.name'] = ?
 	`
 
 	var lastTimestamp time.Time
-	err = db.QueryRowContext(ctx, freshnessQuery, dataset).Scan(&lastTimestamp)
+	err = db.QueryRowContext(ctx, freshnessQuery, dataset, dataset).Scan(&lastTimestamp)
 	if err != nil {
 		health.Status = "warning"
 		health.ErrorMessage = fmt.Sprintf("Failed to check data freshness: %v", err)

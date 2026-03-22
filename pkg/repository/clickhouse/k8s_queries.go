@@ -50,7 +50,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 			substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69) as k8s_container_name,
 			-- Extract 64-char hash (before .log)
 			substring(splitByString('_', ResourceAttributes['__path__'])[3], length(splitByString('_', ResourceAttributes['__path__'])[3]) - 68, 64) as k8s_container_id
-		FROM otel_logs
+		FROM logs
 	`)
 
 	// Build comprehensive WHERE conditions with proper precedence
@@ -184,7 +184,7 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM otel_logs
+		FROM logs
 		WHERE %s`,
 		strings.Join(whereConditions, " AND "))
 

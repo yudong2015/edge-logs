@@ -56,10 +56,10 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchQuery(req *request.LogQuer
 	// Build LIMIT and OFFSET
 	limitClause := fmt.Sprintf("LIMIT %d OFFSET %d", req.PageSize, req.Page*req.PageSize)
 
-	// Construct final query (OTEL table)
+	// Construct final query (unified logs table)
 	query := fmt.Sprintf(`
 		%s
-		FROM otel_logs
+		FROM logs
 		WHERE %s
 		%s
 		%s
@@ -85,10 +85,10 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 		return "", nil, fmt.Errorf("failed to build WHERE clause for count: %w", err)
 	}
 
-	// Construct count query (OTEL table)
+	// Construct count query (unified logs table)
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM otel_logs
+		FROM logs
 		WHERE %s
 	`, strings.Join(whereConditions, " AND "))
 
@@ -569,7 +569,7 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 		       splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name,
 		       splitByString('_', ResourceAttributes['__path__'])[3] as k8s_container_name,
 		       substring(ResourceAttributes['__path__'], length(ResourceAttributes['__path__']) - position(ResourceAttributes['__path__'], '_') - 4) as k8s_container_id
-		FROM otel_logs
+		FROM logs
 		WHERE %s
 		ORDER BY Timestamp DESC
 		LIMIT %d OFFSET %d
@@ -608,7 +608,7 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM otel_logs
+		FROM logs
 		WHERE %s
 	`, strings.Join(conditions, " AND "))
 

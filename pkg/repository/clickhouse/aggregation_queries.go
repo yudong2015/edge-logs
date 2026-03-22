@@ -15,7 +15,7 @@ type AggregationQueryBuilder struct {
 // NewAggregationQueryBuilder creates a new aggregation query builder
 func NewAggregationQueryBuilder() *AggregationQueryBuilder {
 	return &AggregationQueryBuilder{
-		baseQuery: "SELECT %s FROM otel_logs WHERE %s GROUP BY %s %s %s",
+		baseQuery: "SELECT %s FROM logs WHERE %s GROUP BY %s %s %s",
 	}
 }
 
@@ -48,7 +48,7 @@ func (b *AggregationQueryBuilder) BuildAggregationQuery(req *request.Aggregation
 	limitClause := b.buildLimitClause(req)
 
 	// Assemble final query
-	query := fmt.Sprintf("SELECT %s FROM otel_logs WHERE %s",
+	query := fmt.Sprintf("SELECT %s FROM logs WHERE %s",
 		selectClause, strings.Join(whereConditions, " AND "))
 
 	if groupByClause != "" {

@@ -49,7 +49,7 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 			substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69) as k8s_container_name,
 			-- Extract 64-char hash (before .log)
 			substring(splitByString('_', ResourceAttributes['__path__'])[3], length(splitByString('_', ResourceAttributes['__path__'])[3]) - 68, 64) as k8s_container_id
-		FROM otel_logs
+		FROM logs
 	`)
 
 	// 1. Dataset filtering: extract namespace from __path__
@@ -100,7 +100,7 @@ func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryReque
 	tqb.Reset()
 
 	tqb.dataset = req.Dataset
-	tqb.baseQuery.WriteString("SELECT count(*) FROM otel_logs")
+	tqb.baseQuery.WriteString("SELECT count(*) FROM logs")
 
 	// Same filtering logic as main query but without ordering/pagination
 	// Extract namespace from __path__ instead of using empty ServiceName
@@ -146,14 +146,13 @@ func (tqb *TimeQueryBuilder) AddTimeCondition(operator string, t time.Time) {
 		"seconds", seconds)
 }
 
-// SetTimeOptimizedOrdering sets ordering optimized for time-range queries (OTEL format)
+// SetTimeOptimizedOrdering sets ordering optimized for time-range queries (unified logs table)
 func (tqb *TimeQueryBuilder) SetTimeOptimizedOrdering(direction string) {
-	// For time-range queries, Timestamp ordering is most important for performance
-	// ORDER BY uses Timestamp (TimestampTime field doesn't exist in otel_logs table)
+	// For time-range queries, use TimestampTime for efficient partitioning, then Timestamp for precision
 	if strings.ToLower(direction) == "asc" {
-		tqb.SetOrderBy("ServiceName ASC, Timestamp ASC")
+		tqb.SetOrderBy("ServiceName ASC, TimestampTime ASC, Timestamp ASC")
 	} else {
-		tqb.SetOrderBy("ServiceName ASC, Timestamp DESC")
+		tqb.SetOrderBy("ServiceName ASC, TimestampTime DESC, Timestamp DESC")
 	}
 }
 
