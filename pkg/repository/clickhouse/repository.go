@@ -318,8 +318,8 @@ func (r *ClickHouseRepository) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("connection manager health check failed: %w", err)
 	}
 
-	// Test a simple query to verify otel_logs table access
-	query := "SELECT count(*) FROM otel_logs LIMIT 1"
+	// Test a simple query to verify unified logs table access
+	query := "SELECT count(*) FROM logs LIMIT 1"
 	db := r.cm.GetDB()
 
 	var count int
@@ -328,7 +328,7 @@ func (r *ClickHouseRepository) HealthCheck(ctx context.Context) error {
 		return MapClickHouseError(err, "schema_validation").Err
 	}
 
-	klog.V(4).InfoS("仓储层健康检查成功", "otel_logs_accessible", true)
+	klog.V(4).InfoS("仓储层健康检查成功", "logs_accessible", true)
 	return nil
 }
 
