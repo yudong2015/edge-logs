@@ -46,16 +46,12 @@ data:
           - key: deployment.environment
             value: "production"
             action: upsert
-          # DEBUG: Test if resource processor works
-          - key: test.resource.field
-            value: "test-value"
-            action: insert
 
     exporters:
       clickhouse:
         endpoint: tcp://{{ include "edge-logs.clickhouse.serviceName" . }}:9000
         database: edge_logs
-        logs_table_name: otel_logs
+        logs_table_name: logs
         timeout: 10s
         retry_on_failure:
           enabled: true
@@ -63,8 +59,10 @@ data:
           max_interval: 30s
           max_elapsed_time: 300s
 
-      debug:
-        verbosity: normal
+      # Debug exporter disabled to prevent 73GB log bloat
+      # Uncomment only for troubleshooting, then remove immediately
+      # debug:
+      #   verbosity: normal
 
     extensions:
       health_check:
@@ -76,12 +74,12 @@ data:
       pipelines:
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, transform, resource, batch]
-          exporters: [clickhouse, debug]
+          processors: [memory_limiter, transform, batch]
+          exporters: [clickhouse]
 
       telemetry:
         logs:
-          level: "info"
+          level: "warn"  # Reduced from "info" to prevent excessive logging
         metrics:
           level: "basic"
 
@@ -156,6 +154,8 @@ spec:
           env:
             - name: GOMEMLIMIT
               value: "160MiB"
+            - name: OTLP_LOG_LEVEL
+              value: "warn"  # Minimize log output to prevent disk space issues
           resources:
             limits:
               memory: "256Mi"
