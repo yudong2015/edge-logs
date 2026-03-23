@@ -97,9 +97,9 @@ func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryReque
 	tqb.baseQuery.WriteString("SELECT count(*) FROM logs_k8s")
 
 	// Same filtering logic as main query but without ordering/pagination
-	// Extract namespace from __path__ instead of using empty ServiceName
+	// Use dataset column directly
 	if req.Dataset != "" {
-		tqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
+		tqb.AddCondition("dataset = ?", req.Dataset)
 	}
 
 	if req.StartTime != nil {
