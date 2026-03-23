@@ -29,11 +29,11 @@ type LogEntry struct {
 	// Log attributes (includes K8s metadata)
 	LogAttributes map[string]string `ch:"LogAttributes"`
 
-	// K8s metadata extracted from __path__ (for backward compatibility)
-	K8sPodName       string `json:"k8s_pod_name" ch:"k8s_pod_name"`
-	K8sNamespaceName string `json:"k8s_namespace_name" ch:"k8s_namespace_name"`
-	K8sContainerName string `json:"k8s_container_name" ch:"k8s_container_name"`
-	K8sContainerID    string `json:"k8s_container_id" ch:"k8s_container_id"`
+	// K8s metadata extracted from logs_mv table (materialized view)
+	K8sPodName       string `json:"k8s_pod_name" ch:"pod_name"`
+	K8sNamespaceName string `json:"k8s_namespace_name" ch:"namespace_name"`
+	K8sContainerName string `json:"k8s_container_name" ch:"container_name"`
+	K8sContainerID    string `json:"k8s_container_id" ch:"container_id"`
 }
 
 // TableName returns the ClickHouse table name
@@ -51,9 +51,13 @@ func (l *LogEntry) GetSeverity() string {
 	return l.SeverityText
 }
 
-// GetK8sNamespace extracts namespace from ResourceAttributes (data collection stage)
+// GetK8sNamespace extracts namespace from logs_mv table field
 func (l *LogEntry) GetK8sNamespace() string {
-	// Priority: ResourceAttributes (from transform processor) > LogAttributes
+	// Prefer extracted field from logs_mv table
+	if l.K8sNamespaceName != "" {
+		return l.K8sNamespaceName
+	}
+	// Fallback to ResourceAttributes (for old data)
 	if ns, ok := l.ResourceAttributes["k8s.namespace.name"]; ok && ns != "" {
 		return ns
 	}
@@ -63,9 +67,13 @@ func (l *LogEntry) GetK8sNamespace() string {
 	return ""
 }
 
-// GetK8sPodName extracts pod name from ResourceAttributes (data collection stage)
+// GetK8sPodName extracts pod name from logs_mv table field
 func (l *LogEntry) GetK8sPodName() string {
-	// Priority: ResourceAttributes (from transform processor) > LogAttributes
+	// Prefer extracted field from logs_mv table
+	if l.K8sPodName != "" {
+		return l.K8sPodName
+	}
+	// Fallback to ResourceAttributes (for old data)
 	if pod, ok := l.ResourceAttributes["k8s.pod.name"]; ok && pod != "" {
 		return pod
 	}
@@ -83,9 +91,13 @@ func (l *LogEntry) GetK8sNodeName() string {
 	return ""
 }
 
-// GetK8sContainerName extracts container name from ResourceAttributes (data collection stage)
+// GetK8sContainerName extracts container name from logs_mv table field
 func (l *LogEntry) GetK8sContainerName() string {
-	// Priority: ResourceAttributes (from transform processor) > LogAttributes
+	// Prefer extracted field from logs_mv table
+	if l.K8sContainerName != "" {
+		return l.K8sContainerName
+	}
+	// Fallback to ResourceAttributes (for old data)
 	if container, ok := l.ResourceAttributes["k8s.container.name"]; ok && container != "" {
 		return container
 	}
