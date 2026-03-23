@@ -110,7 +110,7 @@ data:
         pod_name LowCardinality(String) CODEC(ZSTD(1)),
         container_name LowCardinality(String) CODEC(ZSTD(1)),
         container_id String CODEC(ZSTD(1)),
-        pod_uid String CODEC(ZSTD(1)),
+        pod_id String CODEC(ZSTD(1)),
 
         -- Indexes for performance (as required in issue)
         INDEX idx_dataset dataset TYPE set(100) GRANULARITY 1,
@@ -120,9 +120,9 @@ data:
         INDEX idx_timestamp TimestampTime TYPE set(100) GRANULARITY 1
     )
     ENGINE = MergeTree()
-    PARTITION BY toDate(TimestampTime)
-    PRIMARY KEY (namespace_name, pod_name, TimestampTime)
-    ORDER BY (namespace_name, pod_name, TimestampTime, Timestamp)
+    PARTITION BY (dataset, toDate(TimestampTime))
+    PRIMARY KEY (dataset, namespace_name, pod_name, TimestampTime)
+    ORDER BY (dataset, namespace_name, pod_name, TimestampTime, Timestamp)
     TTL TimestampTime + INTERVAL {{ .Values.clickhouse.config.retention_days }} DAY DELETE
     SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
@@ -155,7 +155,7 @@ data:
         ResourceAttributes['k8s.container.name'] AS container_name,
         -- Extract from LogAttributes JSON (OTEL standard)
         LogAttributes['k8s.container.id'] AS container_id,
-        ResourceAttributes['k8s.pod.uid'] AS pod_uid
+        ResourceAttributes['k8s.pod.uid'] AS pod_id
     FROM otel_logs;
 
     -- Datasets table
