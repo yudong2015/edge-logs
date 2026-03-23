@@ -38,13 +38,13 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 		return false, fmt.Errorf("dataset parameter cannot be empty")
 	}
 
-	// Use ResourceAttributes for fast dataset filtering with LIMIT 1 for performance
-	// We only need to know if the dataset exists, not the exact count
+	// Use k8s_namespace_name MATERIALIZED column for fast filtering.
+	// Falls back gracefully if the column doesn't exist (error handling returns true below).
 	query := `
 		SELECT 1
 		FROM logs
 		WHERE ServiceName = ?
-		   OR ResourceAttributes['k8s.namespace.name'] = ?
+		   OR k8s_namespace_name = ?
 		LIMIT 1
 	`
 

@@ -142,11 +142,12 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 
 // buildWithMaterializedColumns uses explicit columns for 10-20x better performance
 func (oqb *OptimizedQueryBuilder) buildWithMaterializedColumns(req *request.LogQueryRequest) {
-	// Dataset filtering using MATERIALIZED column
+	// Dataset filtering: use k8s_namespace_name MATERIALIZED column.
+	// In this system, dataset corresponds to the k8s namespace (or ServiceName),
+	// so we mirror the Map fallback logic but with the indexed MATERIALIZED column.
 	if req.Dataset != "" {
-		// Use dataset MATERIALIZED column for optimal performance
-		oqb.AddCondition("dataset = ?", req.Dataset)
-		klog.V(5).InfoS("使用MATERIALIZED dataset列过滤", "dataset", req.Dataset)
+		oqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
+		klog.V(5).InfoS("使用MATERIALIZED k8s_namespace_name列过滤dataset", "dataset", req.Dataset)
 	}
 
 	// K8s metadata filtering using MATERIALIZED columns
