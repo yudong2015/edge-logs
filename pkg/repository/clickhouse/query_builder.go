@@ -252,10 +252,11 @@ func (qb *QueryBuilder) Build() (string, []interface{}) {
 
 	finalQuery := query.String()
 
-	klog.V(5).InfoS("最终查询已构建",
+	klog.V(4).InfoS("最终查询已构建",
 		"dataset", qb.dataset,
 		"query_length", len(finalQuery),
-		"param_count", len(qb.args))
+		"param_count", len(qb.args),
+		"params", qb.args)
 
 	return finalQuery, qb.args
 }
