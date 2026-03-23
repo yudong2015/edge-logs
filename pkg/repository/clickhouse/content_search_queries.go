@@ -59,7 +59,7 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchQuery(req *request.LogQuer
 	// Construct final query (unified logs table)
 	query := fmt.Sprintf(`
 		%s
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE %s
 		%s
 		%s
@@ -88,7 +88,7 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 	// Construct count query (unified logs table)
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE %s
 	`, strings.Join(whereConditions, " AND "))
 
@@ -113,10 +113,10 @@ func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.Cont
 		"ScopeVersion",
 		"ScopeAttributes",
 		"LogAttributes",
-		"k8s_pod_name",
-		"k8s_namespace_name",
-		"k8s_container_name",
-		"k8s_container_id",
+		"pod_name",
+		"namespace_name",
+		"container_name",
+		"container_id",
 	}
 
 	selectFields := baseFields
@@ -558,11 +558,11 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 		       SeverityText, SeverityNumber, ServiceName, Body,
 		       ResourceSchemaUrl, ResourceAttributes,
 		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes,
-		       k8s_pod_name,
-		       k8s_namespace_name,
-		       k8s_container_name,
-		       k8s_container_id
-		FROM logs_k8s
+		       pod_name,
+		       namespace_name,
+		       container_name,
+		       container_id
+		FROM `logs-mv`
 		WHERE %s
 		ORDER BY Timestamp DESC
 		LIMIT %d OFFSET %d
@@ -600,7 +600,7 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE %s
 	`, strings.Join(conditions, " AND "))
 

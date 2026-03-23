@@ -40,11 +40,11 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes,
-			k8s_pod_name,
-			k8s_namespace_name,
-			k8s_container_name,
-			k8s_container_id
-		FROM logs_k8s
+			pod_name,
+			namespace_name,
+			container_name,
+			container_id
+		FROM `logs-mv`
 	`)
 
 	// 1. Dataset filtering - use dataset column directly
@@ -94,7 +94,7 @@ func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryReque
 	tqb.Reset()
 
 	tqb.dataset = req.Dataset
-	tqb.baseQuery.WriteString("SELECT count(*) FROM logs_k8s")
+	tqb.baseQuery.WriteString("SELECT count(*) FROM `logs-mv`")
 
 	// Same filtering logic as main query but without ordering/pagination
 	// Use dataset column directly
@@ -154,10 +154,10 @@ func (tqb *TimeQueryBuilder) SetTimeOptimizedOrdering(direction string) {
 func (tqb *TimeQueryBuilder) applyAdditionalFilters(req *request.LogQueryRequest) {
 	// K8s metadata filtering (from LogAttributes map)
 	if req.Namespace != "" {
-		tqb.AddCondition("k8s_namespace_name = ?", req.Namespace)
+		tqb.AddCondition("namespace_name = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		tqb.AddCondition("k8s_pod_name LIKE ?", "%"+req.PodName+"%")
+		tqb.AddCondition("pod_name LIKE ?", "%"+req.PodName+"%")
 	}
 	if req.NodeName != "" {
 		tqb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)

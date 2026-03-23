@@ -38,13 +38,13 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 		return false, fmt.Errorf("dataset parameter cannot be empty")
 	}
 
-	// Use k8s_namespace_name MATERIALIZED column for fast filtering.
+	// Use namespace_name MATERIALIZED column for fast filtering.
 	// Falls back gracefully if the column doesn't exist (error handling returns true below).
 	query := `
 		SELECT 1
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE ServiceName = ?
-		   OR k8s_namespace_name = ?
+		   OR namespace_name = ?
 		LIMIT 1
 	`
 
@@ -87,15 +87,15 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		Name: dataset,
 	}
 
-	// Use k8s_namespace_name for fast dataset filtering (same strategy as main query)
+	// Use namespace_name for fast dataset filtering (same strategy as main query)
 	statsQuery := `
 		SELECT
 			COUNT(*) as total_logs,
 			MIN(Timestamp) as earliest_time,
 			MAX(Timestamp) as latest_time
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE ServiceName = ?
-		   OR k8s_namespace_name = ?
+		   OR namespace_name = ?
 	`
 
 	klog.InfoS("执行数据集统计查询 [DEBUG]",
@@ -131,7 +131,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	partitionQuery := `
 		SELECT COUNT(DISTINCT partition) as partition_count
 		FROM system.parts
-		WHERE table = 'logs_k8s'
+		WHERE table = '`logs-mv`'
 		AND database = ?
 		AND active = 1
 	`
@@ -147,7 +147,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	sizeQuery := `
 		SELECT COALESCE(SUM(bytes_on_disk), 0) as data_size_bytes
 		FROM system.parts
-		WHERE table = 'logs_k8s'
+		WHERE table = '`logs-mv`'
 		AND database = ?
 		AND active = 1
 	`
@@ -173,12 +173,12 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]string, error) {
 	klog.V(4).InfoS("获取可用数据集列表")
 
-	// Use k8s_namespace_name column for fast namespace enumeration
+	// Use namespace_name column for fast namespace enumeration
 	query := `
 		SELECT DISTINCT
-			k8s_namespace_name as namespace
-		FROM logs_k8s
-		WHERE k8s_namespace_name != ''
+			namespace_name as namespace
+		FROM `logs-mv`
+		WHERE namespace_name != ''
 		ORDER BY namespace
 	`
 
@@ -261,12 +261,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		return health, nil
 	}
 
-	// Check recent data availability (last 24 hours) - use k8s_namespace_name for fast filtering
+	// Check recent data availability (last 24 hours) - use namespace_name for fast filtering
 	recentDataQuery := `
 		SELECT COUNT(*)
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE ServiceName = ?
-		   OR k8s_namespace_name = ?
+		   OR namespace_name = ?
 		AND Timestamp >= ?
 	`
 
@@ -286,12 +286,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		health.ErrorMessage = "No recent data (last 24 hours)"
 	}
 
-	// Check data freshness (most recent log timestamp) - use k8s_namespace_name for fast filtering
+	// Check data freshness (most recent log timestamp) - use namespace_name for fast filtering
 	freshnessQuery := `
 		SELECT MAX(Timestamp)
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE ServiceName = ?
-		   OR k8s_namespace_name = ?
+		   OR namespace_name = ?
 	`
 
 	var lastTimestamp time.Time

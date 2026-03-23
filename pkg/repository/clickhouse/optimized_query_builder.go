@@ -44,7 +44,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes
-		FROM logs_k8s
+		FROM `logs-mv`
 	`)
 
 	oqb.buildWithK8sColumns(req)
@@ -103,23 +103,21 @@ func (oqb *OptimizedQueryBuilder) buildWithK8sColumns(req *request.LogQueryReque
 
 	// K8s metadata filtering using direct columns
 	if req.Namespace != "" {
-		oqb.AddCondition("k8s_namespace_name = ?", req.Namespace)
-		klog.V(5).InfoS("使用k8s_namespace_name列过滤")
+		oqb.AddCondition("namespace_name = ?", req.Namespace)
+		klog.V(5).InfoS("使用namespace_name列过滤")
 	}
 
 	if req.PodName != "" {
-		oqb.AddCondition("k8s_pod_name LIKE ?", "%"+req.PodName+"%")
-		klog.V(5).InfoS("使用k8s_pod_name列过滤")
+		oqb.AddCondition("pod_name LIKE ?", "%"+req.PodName+"%")
+		klog.V(5).InfoS("使用pod_name列过滤")
 	}
 
 	if req.NodeName != "" {
-		oqb.AddCondition("k8s_node_name = ?", req.NodeName)
-		klog.V(5).InfoS("使用k8s_node_name列过滤")
 	}
 
 	if req.ContainerName != "" {
-		oqb.AddCondition("k8s_container_name = ?", req.ContainerName)
-		klog.V(5).InfoS("使用k8s_container_name列过滤")
+		oqb.AddCondition("container_name = ?", req.ContainerName)
+		klog.V(5).InfoS("使用container_name列过滤")
 	}
 
 	// Host filtering using direct columns
@@ -129,8 +127,6 @@ func (oqb *OptimizedQueryBuilder) buildWithK8sColumns(req *request.LogQueryReque
 	}
 
 	if req.HostName != "" {
-		oqb.AddCondition("host_name = ?", req.HostName)
-		klog.V(5).InfoS("使用host_name列过滤")
 	}
 }
 
@@ -140,7 +136,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedCountQuery(ctx context.Context, 
 		"dataset", req.Dataset)
 
 	oqb.dataset = req.Dataset
-	oqb.baseQuery.WriteString("SELECT count(*) FROM logs_k8s")
+	oqb.baseQuery.WriteString("SELECT count(*) FROM `logs-mv`")
 
 	oqb.buildWithK8sColumns(req)
 
@@ -183,14 +179,14 @@ func (oqb *OptimizedQueryBuilder) GetColumnUsageStats(ctx context.Context) (map[
 
 	// Count non-null values in key K8s columns
 	columnsToCheck := []string{
-		"k8s_namespace_name",
-		"k8s_pod_name",
-		"k8s_container_name",
+		"namespace_name",
+		"pod_name",
+		"container_name",
 		"dataset",
 	}
 
 	for _, col := range columnsToCheck {
-		query := fmt.Sprintf("SELECT countIf(%s != '') FROM logs_k8s", col)
+		query := fmt.Sprintf("SELECT countIf(%s != '') FROM `logs-mv`", col)
 		var count int
 		if err := oqb.db.QueryRowContext(ctx, query).Scan(&count); err == nil {
 			stats[col+"_non_null_count"] = count
@@ -242,28 +238,27 @@ func GetMaterializedColumnInfo() []MaterializedColumnInfo {
 			Benefit:     "数据隔离查询快10-20倍",
 		},
 		{
-			ColumnName:  "k8s_namespace_name",
+			ColumnName:  "namespace_name",
 			SourceMap:   "ResourceAttributes",
 			SourceField: "k8s.namespace.name",
 			IndexType:   "set(1000)",
 			Benefit:     "Namespace过滤快16倍",
 		},
 		{
-			ColumnName:  "k8s_pod_name",
+			ColumnName:  "pod_name",
 			SourceMap:   "ResourceAttributes",
 			SourceField: "k8s.pod.name",
 			IndexType:   "set(10000)",
 			Benefit:     "Pod过滤快20倍",
 		},
 		{
-			ColumnName:  "k8s_container_name",
+			ColumnName:  "container_name",
 			SourceMap:   "ResourceAttributes",
 			SourceField: "k8s.container.name",
 			IndexType:   "set(1000)",
 			Benefit:     "Container过滤快17.5倍",
 		},
 		{
-			ColumnName:  "k8s_node_name",
 			SourceMap:   "LogAttributes",
 			SourceField: "k8s.node.name",
 			IndexType:   "set(1000)",
@@ -277,7 +272,6 @@ func GetMaterializedColumnInfo() []MaterializedColumnInfo {
 			Benefit:     "主机IP过滤快10倍",
 		},
 		{
-			ColumnName:  "host_name",
 			SourceMap:   "ResourceAttributes",
 			SourceField: "host.name",
 			IndexType:   "set(100)",
@@ -307,7 +301,7 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 
 	// Total rows
 	var totalRows int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM logs_k8s").Scan(&totalRows); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM `logs-mv`").Scan(&totalRows); err != nil {
 		return nil, err
 	}
 	stats["total_rows"] = totalRows
@@ -322,13 +316,13 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 		statsKey string
 	}{
 		{"dataset", "dataset_filled"},
-		{"k8s_namespace_name", "k8s_namespace_filled"},
-		{"k8s_pod_name", "k8s_pod_filled"},
+		{"namespace_name", "k8s_namespace_filled"},
+		{"pod_name", "k8s_pod_filled"},
 	}
 
 	for _, col := range columns {
 		var filled int
-		query := fmt.Sprintf("SELECT countIf(%s != '') FROM logs_k8s", col.name)
+		query := fmt.Sprintf("SELECT countIf(%s != '') FROM `logs-mv`", col.name)
 		if err := db.QueryRowContext(ctx, query).Scan(&filled); err == nil {
 			stats[col.statsKey] = filled
 		}

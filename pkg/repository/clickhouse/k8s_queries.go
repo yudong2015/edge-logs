@@ -41,11 +41,11 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes,
-			k8s_pod_name,
-			k8s_namespace_name,
-			k8s_container_name,
-			k8s_container_id
-		FROM logs_k8s
+			pod_name,
+			namespace_name,
+			container_name,
+			container_id
+		FROM `logs-mv`
 	`)
 
 	// Build comprehensive WHERE conditions with proper precedence
@@ -91,12 +91,11 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	}
 
 	if req.NodeName != "" {
-		whereConditions = append(whereConditions, "k8s_node_name = ?")
 		args = append(args, req.NodeName)
 	}
 
 	if req.ContainerName != "" {
-		whereConditions = append(whereConditions, "k8s_container_name = ?")
+		whereConditions = append(whereConditions, "container_name = ?")
 		args = append(args, req.ContainerName)
 	}
 
@@ -104,7 +103,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	whereClause := strings.Join(whereConditions, " AND ")
 	query := fmt.Sprintf(`%s
 		WHERE %s
-		ORDER BY Timestamp DESC, k8s_namespace_name ASC, k8s_pod_name ASC
+		ORDER BY Timestamp DESC, namespace_name ASC, pod_name ASC
 		LIMIT %d OFFSET %d`,
 		kqb.baseQuery.String(),
 		whereClause,
@@ -166,18 +165,17 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 	}
 
 	if req.NodeName != "" {
-		whereConditions = append(whereConditions, "k8s_node_name = ?")
 		args = append(args, req.NodeName)
 	}
 
 	if req.ContainerName != "" {
-		whereConditions = append(whereConditions, "k8s_container_name = ?")
+		whereConditions = append(whereConditions, "container_name = ?")
 		args = append(args, req.ContainerName)
 	}
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs_k8s
+		FROM `logs-mv`
 		WHERE %s`,
 		strings.Join(whereConditions, " AND "))
 

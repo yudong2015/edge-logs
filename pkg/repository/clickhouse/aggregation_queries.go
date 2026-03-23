@@ -15,7 +15,7 @@ type AggregationQueryBuilder struct {
 // NewAggregationQueryBuilder creates a new aggregation query builder
 func NewAggregationQueryBuilder() *AggregationQueryBuilder {
 	return &AggregationQueryBuilder{
-		baseQuery: "SELECT %s FROM logs_k8s WHERE %s GROUP BY %s %s %s",
+		baseQuery: "SELECT %s FROM `logs-mv` WHERE %s GROUP BY %s %s %s",
 	}
 }
 
@@ -48,7 +48,7 @@ func (b *AggregationQueryBuilder) BuildAggregationQuery(req *request.Aggregation
 	limitClause := b.buildLimitClause(req)
 
 	// Assemble final query
-	query := fmt.Sprintf("SELECT %s FROM logs_k8s WHERE %s",
+	query := fmt.Sprintf("SELECT %s FROM `logs-mv` WHERE %s",
 		selectClause, strings.Join(whereConditions, " AND "))
 
 	if groupByClause != "" {
@@ -103,15 +103,14 @@ func (b *AggregationQueryBuilder) buildDimensionField(dim request.AggregationDim
 	case request.DimensionSeverity:
 		return "SeverityText", nil
 	case request.DimensionNamespace:
-		return "k8s_namespace_name", nil
+		return "namespace_name", nil
 	case request.DimensionPodName:
-		return "k8s_pod_name", nil
+		return "pod_name", nil
 	case request.DimensionNodeName:
 		return "LogAttributes['k8s.node.name']", nil
 	case request.DimensionHostName:
-		return "host_name", nil
 	case request.DimensionContainerName:
-		return "k8s_container_name", nil
+		return "container_name", nil
 	case request.DimensionDataset:
 		return "ServiceName", nil
 	case request.DimensionTimestamp:
@@ -208,7 +207,7 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 			placeholders[i] = "?"
 			args = append(args, req.Namespaces[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("k8s_namespace_name IN (%s)", strings.Join(placeholders, ", ")))
+		conditions = append(conditions, fmt.Sprintf("namespace_name IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
 	// Pod name filters (from ResourceAttributes)
@@ -218,7 +217,7 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 			placeholders[i] = "?"
 			args = append(args, req.PodNames[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("k8s_pod_name IN (%s)", strings.Join(placeholders, ", ")))
+		conditions = append(conditions, fmt.Sprintf("pod_name IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
 	// Severity filter
@@ -311,7 +310,6 @@ func (b *AggregationQueryBuilder) getDimensionDefaultAlias(dimType request.Aggre
 	case request.DimensionNodeName:
 		return "node_name"
 	case request.DimensionHostName:
-		return "host_name"
 	case request.DimensionContainerName:
 		return "container_name"
 	case request.DimensionDataset:
