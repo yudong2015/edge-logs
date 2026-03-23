@@ -15,7 +15,7 @@ type AggregationQueryBuilder struct {
 // NewAggregationQueryBuilder creates a new aggregation query builder
 func NewAggregationQueryBuilder() *AggregationQueryBuilder {
 	return &AggregationQueryBuilder{
-		baseQuery: "SELECT %s FROM `logs-mv` WHERE %s GROUP BY %s %s %s",
+		baseQuery: "SELECT %s FROM " + "`logs-mv`" + " WHERE %s GROUP BY %s %s %s",
 	}
 }
 
@@ -48,7 +48,7 @@ func (b *AggregationQueryBuilder) BuildAggregationQuery(req *request.Aggregation
 	limitClause := b.buildLimitClause(req)
 
 	// Assemble final query
-	query := fmt.Sprintf("SELECT %s FROM `logs-mv` WHERE %s",
+	query := fmt.Sprintf("SELECT %s FROM "+`"`+"logs-mv"+`"`+" WHERE %s",
 		selectClause, strings.Join(whereConditions, " AND "))
 
 	if groupByClause != "" {
@@ -109,6 +109,7 @@ func (b *AggregationQueryBuilder) buildDimensionField(dim request.AggregationDim
 	case request.DimensionNodeName:
 		return "LogAttributes['k8s.node.name']", nil
 	case request.DimensionHostName:
+		return "ResourceAttributes['host.name']", nil
 	case request.DimensionContainerName:
 		return "container_name", nil
 	case request.DimensionDataset:
@@ -310,6 +311,7 @@ func (b *AggregationQueryBuilder) getDimensionDefaultAlias(dimType request.Aggre
 	case request.DimensionNodeName:
 		return "node_name"
 	case request.DimensionHostName:
+		return "host_name"
 	case request.DimensionContainerName:
 		return "container_name"
 	case request.DimensionDataset:

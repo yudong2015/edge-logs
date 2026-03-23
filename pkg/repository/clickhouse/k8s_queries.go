@@ -45,7 +45,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 			namespace_name,
 			container_name,
 			container_id
-		FROM `logs-mv`
+		FROM ` + "`logs-mv`" + `
 	`)
 
 	// Build comprehensive WHERE conditions with proper precedence
@@ -175,7 +175,7 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM `logs-mv`
+		FROM ` + "`logs-mv`" + `
 		WHERE %s`,
 		strings.Join(whereConditions, " AND "))
 
