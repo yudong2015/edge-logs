@@ -153,6 +153,10 @@ spec:
                 sleep 2
               done
 
+              # Additional wait to ensure ClickHouse SQL engine is fully ready
+              echo "Waiting 10 seconds for ClickHouse SQL engine to stabilize..."
+              sleep 10
+
               echo "Executing ClickHouse initialization scripts..."
               for sql_file in /docker-entrypoint-initdb.d/*.sql; do
                 if [ -f "$sql_file" ]; then
