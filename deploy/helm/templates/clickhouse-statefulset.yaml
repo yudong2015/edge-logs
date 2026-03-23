@@ -95,6 +95,13 @@ data:
         SeverityNumber UInt8,
         ServiceName LowCardinality(String) CODEC(ZSTD(1)),
         Body String CODEC(ZSTD(1)),
+        ResourceSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
+        ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        ScopeSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
+        ScopeName String CODEC(ZSTD(1)),
+        ScopeVersion LowCardinality(String) CODEC(ZSTD(1)),
+        ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
 
         -- Extracted K8s Fields (from ResourceAttributes and LogAttributes JSON)
         dataset LowCardinality(String) DEFAULT 'default' CODEC(ZSTD(1)),
@@ -132,6 +139,13 @@ data:
         SeverityNumber,
         ServiceName,
         Body,
+        ResourceSchemaUrl,
+        ResourceAttributes,
+        ScopeSchemaUrl,
+        ScopeName,
+        ScopeVersion,
+        ScopeAttributes,
+        LogAttributes,
         dataset,
         -- Extract from ResourceAttributes JSON (OTEL standard)
         ResourceAttributes['host.ip'] AS host_ip,
@@ -142,64 +156,6 @@ data:
         LogAttributes['k8s.container.id'] AS container_id,
         ResourceAttributes['k8s.pod.uid'] AS pod_uid
     FROM otel_logs;
-
-    -- Datasets table
-    CREATE TABLE IF NOT EXISTS datasets (
-        -- ============================================================
-        -- OTEL Standard Fields
-        -- ============================================================
-
-        Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-        TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(8), ZSTD(1)),
-        TraceId String CODEC(ZSTD(1)),
-        SpanId String CODEC(ZSTD(1)),
-        TraceFlags UInt8,
-        SeverityText LowCardinality(String) CODEC(ZSTD(1)),
-        SeverityNumber UInt8,
-        ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-        Body String CODEC(ZSTD(1)),
-
-        ResourceSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
-        ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-        ScopeSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
-        ScopeName String CODEC(ZSTD(1)),
-        ScopeVersion LowCardinality(String) CODEC(ZSTD(1)),
-        ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-        LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-        EventName String CODEC(ZSTD(1)),
-
-        dataset LowCardinality(String) DEFAULT 'default' CODEC(ZSTD(1)),
-
-        -- ============================================================
-        -- Extracted K8s Columns
-        -- ============================================================
-
-        k8s_namespace_name LowCardinality(String) CODEC(ZSTD(1)),
-        k8s_pod_name LowCardinality(String) CODEC(ZSTD(1)),
-        k8s_container_name LowCardinality(String) CODEC(ZSTD(1)),
-        k8s_node_name LowCardinality(String) CODEC(ZSTD(1)),
-        k8s_container_id String CODEC(ZSTD(1)),
-        host_ip LowCardinality(String) CODEC(ZSTD(1)),
-        host_name LowCardinality(String) CODEC(ZSTD(1)),
-
-        -- ============================================================
-        -- Indexes
-        -- ============================================================
-
-        INDEX idx_k8s_namespace k8s_namespace_name TYPE set(1000) GRANULARITY 1,
-        INDEX idx_k8s_pod k8s_pod_name TYPE set(10000) GRANULARITY 1,
-        INDEX idx_k8s_container k8s_container_name TYPE set(1000) GRANULARITY 1,
-        INDEX idx_k8s_node k8s_node_name TYPE set(1000) GRANULARITY 1,
-        INDEX idx_k8s_container_id k8s_container_id TYPE set(10000) GRANULARITY 1,
-        INDEX idx_host_ip host_ip TYPE set(100) GRANULARITY 1,
-        INDEX idx_host_name host_name TYPE set(100) GRANULARITY 1
-    )
-    ENGINE = MergeTree()
-    PARTITION BY toDate(TimestampTime)
-    PRIMARY KEY (k8s_namespace_name, k8s_pod_name, TimestampTime)
-    ORDER BY (k8s_namespace_name, k8s_pod_name, TimestampTime, Timestamp)
-    TTL TimestampTime + INTERVAL {{ .Values.clickhouse.config.retention_days }} DAY DELETE
-    SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
     -- Datasets table
     CREATE TABLE IF NOT EXISTS datasets (
