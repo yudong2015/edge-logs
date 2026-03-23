@@ -141,30 +141,26 @@ spec:
         - name: init-clickhouse-tables
           image: {{ include "edge-logs.clickhouse.image" . }}
           imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
-          command: ["/bin/sh", "-c"]
+          command: ['sh', '-c']
           args:
             - |
               set -e
               CLICKHOUSE_HOST="{{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local"
               CLICKHOUSE_PORT=9000
 
-              echo "Waiting for ClickHouse TCP port $CLICKHOUSE_PORT to be ready..."
-              for i in $(seq 1 60); do
-                if timeout 2 bash -c "cat < /dev/null > /dev/tcp/$CLICKHOUSE_HOST/$CLICKHOUSE_PORT" 2>/dev/null; then
-                  echo "ClickHouse TCP port is ready"
-                  break
-                fi
-                echo "Waiting for ClickHouse TCP port... ($i/60)"
+              echo "Waiting for ClickHouse at $CLICKHOUSE_HOST:$CLICKHOUSE_PORT..."
+              until nc -z $CLICKHOUSE_HOST $CLICKHOUSE_PORT; do
+                echo "ClickHouse not ready, waiting..."
                 sleep 2
               done
+              echo "ClickHouse is ready!"
 
-              # Wait additional time for ClickHouse to be fully ready
-              echo "Waiting 15 seconds for ClickHouse initialization to complete..."
+              # Wait for ClickHouse to be fully ready
+              echo "Waiting 15s for ClickHouse initialization..."
               sleep 15
 
+              # Execute initialization scripts
               echo "Executing ClickHouse initialization scripts..."
-              export CLICKHOUSE_HOST=$CLICKHOUSE_HOST
-              export CLICKHOUSE_PORT=$CLICKHOUSE_PORT
               for sql_file in /docker-entrypoint-initdb.d/*.sql; do
                 if [ -f "$sql_file" ]; then
                   echo "Executing $sql_file..."

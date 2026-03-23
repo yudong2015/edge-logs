@@ -82,30 +82,24 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- if .Values.apiserver.initContainer.enabled }}
       initContainers:
-        - name: init-clickhouse
-          image: "{{ .Values.global.imageRegistry | default "docker.io" }}/busybox:1.36"
-          imagePullPolicy: {{ .Values.apiserver.image.pullPolicy | default "IfNotPresent" }}
-          command: ["/bin/sh", "-c"]
+        - name: wait-for-clickhouse
+          image: busybox:1.36
+          command: ['sh', '-c']
           args:
             - |
               CLICKHOUSE_HOST="{{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local"
               CLICKHOUSE_PORT={{ .Values.apiserver.config.clickhouse.port }}
 
-              echo "Waiting for ClickHouse TCP port $CLICKHOUSE_PORT to be ready..."
-              for i in $(seq 1 60); do
-                if timeout 2 bash -c "cat < /dev/null > /dev/tcp/$CLICKHOUSE_HOST/$CLICKHOUSE_PORT" 2>/dev/null; then
-                  echo "ClickHouse TCP port is ready"
-                  break
-                fi
-                echo "Waiting for ClickHouse TCP port... ($i/60)"
+              echo "Waiting for ClickHouse at $CLICKHOUSE_HOST:$CLICKHOUSE_PORT..."
+              until nc -z $CLICKHOUSE_HOST $CLICKHOUSE_PORT; do
+                echo "ClickHouse not ready, waiting..."
                 sleep 2
               done
+              echo "ClickHouse is ready!"
 
-              # Wait additional time for ClickHouse tables to be initialized
-              echo "Waiting 20 seconds for ClickHouse table initialization..."
+              # Wait for table initialization
+              echo "Waiting 20s for table initialization..."
               sleep 20
-
-              echo "ClickHouse is ready for connections"
       {{- end }}
       containers:
         - name: apiserver
