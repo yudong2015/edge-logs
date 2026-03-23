@@ -39,11 +39,9 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 	// Build base query
 	oqb.baseQuery.WriteString(`
 		SELECT
-			Timestamp, TraceId, SpanId, TraceFlags,
-			SeverityText, SeverityNumber, ServiceName, Body,
-			ResourceSchemaUrl, ResourceAttributes,
-			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
-			LogAttributes
+			Timestamp,
+			SeverityText, SeverityNumber, ServiceName,
+			Body AS Content
 		FROM ` + "`logs_mv`" + `
 	`)
 
@@ -64,12 +62,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 
 	// Full-text search
 	if req.Filter != "" {
-		oqb.AddCondition("hasToken(Body, ?)", req.Filter)
-	}
-
-	// Tag filtering
-	for key, value := range req.Tags {
-		oqb.AddCondition("LogAttributes[?] = ?", key, value)
+		oqb.AddCondition("hasToken(Content, ?)", req.Filter)
 	}
 
 	// ORDER BY for optimal performance
@@ -154,10 +147,6 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedCountQuery(ctx context.Context, 
 
 	if req.Filter != "" {
 		oqb.AddCondition("hasToken(Body, ?)", req.Filter)
-	}
-
-	for key, value := range req.Tags {
-		oqb.AddCondition("LogAttributes[?] = ?", key, value)
 	}
 
 	query, args := oqb.Build()

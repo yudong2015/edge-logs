@@ -229,7 +229,7 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 
 	// Content search filter (Body field in OTEL format)
 	if req.ContentSearch != "" {
-		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Content, ?) > 0")
 		args = append(args, req.ContentSearch)
 	}
 

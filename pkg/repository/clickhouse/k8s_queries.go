@@ -36,11 +36,9 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	// Build base query with OTEL table field selection and K8s metadata extraction
 	kqb.baseQuery.WriteString(`
 		SELECT
-			Timestamp, TraceId, SpanId, TraceFlags,
-			SeverityText, SeverityNumber, ServiceName, Body,
-			ResourceSchemaUrl, ResourceAttributes,
-			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
-			LogAttributes,
+			Timestamp,
+			SeverityText, SeverityNumber, ServiceName,
+			Body AS Content,
 			pod_name,
 			namespace_name,
 			container_name,
@@ -81,7 +79,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 
 	// 4. Additional content and metadata filters
 	if req.Filter != "" {
-		whereConditions = append(whereConditions, "positionCaseInsensitive(Body, ?) > 0")
+		whereConditions = append(whereConditions, "positionCaseInsensitive(Content, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
@@ -155,7 +153,7 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 
 	// Additional filters
 	if req.Filter != "" {
-		whereConditions = append(whereConditions, "positionCaseInsensitive(Body, ?) > 0")
+		whereConditions = append(whereConditions, "positionCaseInsensitive(Content, ?) > 0")
 		args = append(args, req.Filter)
 	}
 

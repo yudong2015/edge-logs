@@ -35,11 +35,9 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 	// Build base query with OTEL table field selection and K8s metadata extraction
 	tqb.baseQuery.WriteString(`
 		SELECT
-			Timestamp, TraceId, SpanId, TraceFlags,
-			SeverityText, SeverityNumber, ServiceName, Body,
-			ResourceSchemaUrl, ResourceAttributes,
-			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
-			LogAttributes,
+			Timestamp,
+			SeverityText, SeverityNumber, ServiceName,
+			Body AS Content,
 			pod_name,
 			namespace_name,
 			container_name,
@@ -152,28 +150,17 @@ func (tqb *TimeQueryBuilder) SetTimeOptimizedOrdering(direction string) {
 
 // applyAdditionalFilters applies non-time filters after time filtering (OTEL format)
 func (tqb *TimeQueryBuilder) applyAdditionalFilters(req *request.LogQueryRequest) {
-	// K8s metadata filtering (from LogAttributes map)
+	// K8s metadata filtering using direct columns
 	if req.Namespace != "" {
 		tqb.AddCondition("namespace_name = ?", req.Namespace)
 	}
 	if req.PodName != "" {
 		tqb.AddCondition("pod_name LIKE ?", "%"+req.PodName+"%")
 	}
-	if req.NodeName != "" {
-		tqb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
-	}
 
-	// Host filtering (from ResourceAttributes map)
-	if req.HostIP != "" {
-		tqb.AddCondition("ResourceAttributes['host.ip'] = ?", req.HostIP)
-	}
-	if req.HostName != "" {
-		tqb.AddCondition("ResourceAttributes['host.name'] = ?", req.HostName)
-	}
-
-	// Container filtering (from LogAttributes map)
+	// Container filtering using direct column
 	if req.ContainerName != "" {
-		tqb.AddCondition("LogAttributes['k8s.container.name'] = ?", req.ContainerName)
+		tqb.AddCondition("container_name = ?", req.ContainerName)
 	}
 
 	// Severity filtering
@@ -184,12 +171,7 @@ func (tqb *TimeQueryBuilder) applyAdditionalFilters(req *request.LogQueryRequest
 	// Full-text search (applied after time filtering for performance)
 	if req.Filter != "" {
 		// Use positionCaseInsensitive for better performance with time-filtered datasets
-		tqb.AddCondition("positionCaseInsensitive(Body, ?) > 0", req.Filter)
-	}
-
-	// Tag filtering (from LogAttributes map with bloom filter index)
-	for key, value := range req.Tags {
-		tqb.AddCondition("LogAttributes[?] = ?", key, value)
+		tqb.AddCondition("positionCaseInsensitive(Content, ?) > 0", req.Filter)
 	}
 }
 

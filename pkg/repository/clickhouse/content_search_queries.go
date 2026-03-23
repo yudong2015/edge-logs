@@ -99,20 +99,10 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.ContentSearchExpression) string {
 	baseFields := []string{
 		"Timestamp",
-		"TraceId",
-		"SpanId",
-		"TraceFlags",
 		"SeverityText",
 		"SeverityNumber",
 		"ServiceName",
-		"Body",
-		"ResourceSchemaUrl",
-		"ResourceAttributes",
-		"ScopeSchemaUrl",
-		"ScopeName",
-		"ScopeVersion",
-		"ScopeAttributes",
-		"LogAttributes",
+		"Body AS Content",
 		"pod_name",
 		"namespace_name",
 		"container_name",
@@ -161,7 +151,7 @@ func (b *ContentSearchQueryBuilder) buildWhereClause(req *request.LogQueryReques
 
 	// Legacy filter handling for backward compatibility
 	if req.Filter != "" && len(contentSearch.Filters) == 0 {
-		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Content, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
@@ -395,20 +385,20 @@ func (b *ContentSearchQueryBuilder) buildSingleFilterCondition(filter search.Con
 	switch filter.Type {
 	case search.ContentSearchExact:
 		if filter.CaseInsensitive {
-			condition = "positionCaseInsensitive(Body, ?) > 0"
+			condition = "positionCaseInsensitive(Content, ?) > 0"
 		} else {
 			// Use position for exact matches - benefits from tokenbf_v1 index
-			condition = "position(Body, ?) > 0"
+			condition = "position(Content, ?) > 0"
 		}
 		args = append(args, filter.Pattern)
 
 	case search.ContentSearchCaseInsensitive:
-		condition = "positionCaseInsensitive(Body, ?) > 0"
+		condition = "positionCaseInsensitive(Content, ?) > 0"
 		args = append(args, filter.Pattern)
 
 	case search.ContentSearchRegex:
 		// Use match function for regex - can benefit from tokenbf_v1 for literal parts
-		condition = "match(Body, ?)"
+		condition = "match(Content, ?)"
 		args = append(args, filter.Pattern)
 
 	case search.ContentSearchWildcard:
@@ -424,7 +414,7 @@ func (b *ContentSearchQueryBuilder) buildSingleFilterCondition(filter search.Con
 	case search.ContentSearchPhrase:
 		// Use exact phrase matching with word boundaries
 		phrasePattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(filter.Pattern))
-		condition = "match(Body, ?)"
+		condition = "match(Content, ?)"
 		args = append(args, phrasePattern)
 
 	case search.ContentSearchProximity:
@@ -438,7 +428,7 @@ func (b *ContentSearchQueryBuilder) buildSingleFilterCondition(filter search.Con
 		// This is a simplified version - a full implementation would use more sophisticated algorithms
 		var proximityConditions []string
 		for _, term := range terms {
-			proximityConditions = append(proximityConditions, fmt.Sprintf("position(Body, '%s') > 0", strings.ReplaceAll(term, "'", "''")))
+			proximityConditions = append(proximityConditions, fmt.Sprintf("position(Content, '%s') > 0", strings.ReplaceAll(term, "'", "''")))
 		}
 
 		// For now, just ensure all terms are present (simple implementation)
@@ -496,15 +486,15 @@ func (b *ContentSearchQueryBuilder) buildRelevanceScoring(contentSearch *search.
 		var scoreExpr string
 		switch filter.Type {
 		case search.ContentSearchExact, search.ContentSearchCaseInsensitive:
-			scoreExpr = fmt.Sprintf("(position(Body, '%s') > 0 ? %f : 0)",
+			scoreExpr = fmt.Sprintf("(position(Content, '%s') > 0 ? %f : 0)",
 				strings.ReplaceAll(filter.Pattern, "'", "''"), filter.Weight)
 		case search.ContentSearchPhrase:
 			phrasePattern := strings.ReplaceAll(filter.Pattern, "'", "''")
-			scoreExpr = fmt.Sprintf("(match(Body, '\\b%s\\b') ? %f : 0)",
+			scoreExpr = fmt.Sprintf("(match(Content, '\\b%s\\b') ? %f : 0)",
 				phrasePattern, filter.Weight)
 		case search.ContentSearchProximity:
 			// Higher score for proximity matches
-			scoreExpr = fmt.Sprintf("(position(Body, '%s') > 0 ? %f : 0)",
+			scoreExpr = fmt.Sprintf("(position(Content, '%s') > 0 ? %f : 0)",
 				strings.ReplaceAll(strings.Fields(filter.Pattern)[0], "'", "''"), filter.Weight)
 		}
 		if scoreExpr != "" {
@@ -549,15 +539,14 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 
 	// Basic filter
 	if req.Filter != "" {
-		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Content, ?) > 0")
 		args = append(args, req.Filter)
 	}
 
 	query := fmt.Sprintf(`
-		SELECT Timestamp, TraceId, SpanId, TraceFlags,
-		       SeverityText, SeverityNumber, ServiceName, Body,
-		       ResourceSchemaUrl, ResourceAttributes,
-		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes,
+		SELECT Timestamp,
+		       SeverityText, SeverityNumber, ServiceName,
+		       Body AS Content,
 		       pod_name,
 		       namespace_name,
 		       container_name,
@@ -594,7 +583,7 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 
 	// Basic filter
 	if req.Filter != "" {
-		conditions = append(conditions, "positionCaseInsensitive(Body, ?) > 0")
+		conditions = append(conditions, "positionCaseInsensitive(Content, ?) > 0")
 		args = append(args, req.Filter)
 	}
 

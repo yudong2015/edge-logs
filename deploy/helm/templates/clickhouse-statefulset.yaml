@@ -83,25 +83,15 @@ data:
 
     -- Materialized view target table: logs_mv with extracted K8s fields
     -- Issue requirement: extract dataset, host_ip, namespace_name, pod_name,
-    -- container_name, timestamp, content, severity, container_id, pod_uid
+    -- container_name, timestamp, content, severity, container_id, pod_id
     CREATE TABLE IF NOT EXISTS `logs_mv` (
-        -- OTEL Standard Fields
+        -- OTEL Standard Fields (minimal set as required by issue)
         Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
         TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(8), ZSTD(1)),
-        TraceId String CODEC(ZSTD(1)),
-        SpanId String CODEC(ZSTD(1)),
-        TraceFlags UInt8,
         SeverityText LowCardinality(String) CODEC(ZSTD(1)),
         SeverityNumber UInt8,
         ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-        Body String CODEC(ZSTD(1)),
-        ResourceSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
-        ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-        ScopeSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
-        ScopeName String CODEC(ZSTD(1)),
-        ScopeVersion LowCardinality(String) CODEC(ZSTD(1)),
-        ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-        LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        Content String CODEC(ZSTD(1)),
 
         -- Extracted K8s Fields (from ResourceAttributes and LogAttributes JSON)
         dataset LowCardinality(String) DEFAULT 'default' CODEC(ZSTD(1)),
@@ -113,7 +103,6 @@ data:
         pod_id String CODEC(ZSTD(1)),
 
         -- Indexes for performance (as required in issue)
-        INDEX idx_dataset dataset TYPE set(100) GRANULARITY 1,
         INDEX idx_namespace namespace_name TYPE set(1000) GRANULARITY 1,
         INDEX idx_pod pod_name TYPE set(10000) GRANULARITY 1,
         INDEX idx_container container_name TYPE set(1000) GRANULARITY 1,
@@ -133,20 +122,10 @@ data:
     SELECT
         Timestamp,
         TimestampTime,
-        TraceId,
-        SpanId,
-        TraceFlags,
         SeverityText,
         SeverityNumber,
         ServiceName,
-        Body,
-        ResourceSchemaUrl,
-        ResourceAttributes,
-        ScopeSchemaUrl,
-        ScopeName,
-        ScopeVersion,
-        ScopeAttributes,
-        LogAttributes,
+        Body AS Content,
         dataset,
         -- Extract from ResourceAttributes JSON (OTEL standard)
         ResourceAttributes['host.ip'] AS host_ip,
