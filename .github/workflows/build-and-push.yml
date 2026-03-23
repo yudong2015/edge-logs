@@ -56,7 +56,11 @@ jobs:
             echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extract Docker metadata
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Extract Docker metadata (GHCR)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -71,7 +75,7 @@ jobs:
           flavor: |
             latest=${{ github.event_name == 'workflow_dispatch' }}
 
-      - name: Build and push image
+      - name: Build and push image to GHCR
         id: build
         uses: docker/build-push-action@v5
         with:
@@ -84,19 +88,24 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
 
+      - name: Also push to ttl.sh (public, 7-day TTL) for apiserver only
+        if: matrix.component == 'logs-apiserver' && github.ref == 'refs/heads/main'
+        run: |
+          SHORT_SHA="${{ steps.sha.outputs.short }}"
+          TTL_IMAGE="ttl.sh/edge-logs-apiserver-${SHORT_SHA}:7d"
+          docker pull ${{ env.REGISTRY }}/${{ env.REPO }}/${{ matrix.component }}:main-${SHORT_SHA}
+          docker tag ${{ env.REGISTRY }}/${{ env.REPO }}/${{ matrix.component }}:main-${SHORT_SHA} ${TTL_IMAGE}
+          docker push ${TTL_IMAGE}
+          echo "ttl_image=${TTL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "Public image (7-day TTL): ${TTL_IMAGE}"
+        id: ttl
+
       - name: Output image tags
         run: |
-          echo "Built and pushed: ${{ steps.meta.outputs.tags }}"
-
-      - name: Make package public
-        run: |
-          PACKAGE_NAME="edge-logs%2F${{ matrix.component }}"
-          curl -s -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/user/packages/container/${PACKAGE_NAME}" \
-            -d '{"visibility":"public"}' || echo "Note: could not set package visibility (may need manual action)"
+          echo "GHCR: ${{ steps.meta.outputs.tags }}"
+          if [[ -n "${{ steps.ttl.outputs.ttl_image }}" ]]; then
+            echo "Public (ttl.sh): ${{ steps.ttl.outputs.ttl_image }}"
+          fi
 
   deploy-notification:
     needs: [build]
@@ -105,6 +114,6 @@ jobs:
     steps:
       - name: Notify deployment
         run: |
-          echo "Images built and pushed to GHCR successfully!"
-          echo "Registry: ghcr.io/yudong2015/edge-logs"
-          echo "Components: logs-apiserver, logs-frontend"
+          echo "Images built and pushed successfully!"
+          echo "GHCR: ghcr.io/yudong2015/edge-logs"
+          echo "Public (ttl.sh, 7d): ttl.sh/edge-logs-apiserver-<sha>:7d"
