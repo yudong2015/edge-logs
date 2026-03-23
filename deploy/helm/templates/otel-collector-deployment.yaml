@@ -143,28 +143,38 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Waiting for ClickHouse to be ready..."
+              set -e
+              CLICKHOUSE_HOST="{{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local"
+              CLICKHOUSE_PORT=9000
+
+              echo "Waiting for ClickHouse TCP port $CLICKHOUSE_PORT to be ready..."
               for i in $(seq 1 60); do
-                if clickhouse-client --host {{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local --port 9000 --query "SELECT 1" &>/dev/null; then
-                  echo "ClickHouse is ready"
+                if timeout 2 bash -c "cat < /dev/null > /dev/tcp/$CLICKHOUSE_HOST/$CLICKHOUSE_PORT" 2>/dev/null; then
+                  echo "ClickHouse TCP port is ready"
                   break
                 fi
-                echo "Waiting for ClickHouse... ($i/60)"
+                echo "Waiting for ClickHouse TCP port... ($i/60)"
                 sleep 2
               done
 
-              # Additional wait to ensure ClickHouse SQL engine is fully ready
-              echo "Waiting 10 seconds for ClickHouse SQL engine to stabilize..."
-              sleep 10
+              # Wait additional time for ClickHouse to be fully ready
+              echo "Waiting 15 seconds for ClickHouse initialization to complete..."
+              sleep 15
 
               echo "Executing ClickHouse initialization scripts..."
+              export CLICKHOUSE_HOST=$CLICKHOUSE_HOST
+              export CLICKHOUSE_PORT=$CLICKHOUSE_PORT
               for sql_file in /docker-entrypoint-initdb.d/*.sql; do
                 if [ -f "$sql_file" ]; then
                   echo "Executing $sql_file..."
-                  clickhouse-client --host {{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local --port 9000 --multiquery < "$sql_file" || echo "Failed to execute $sql_file"
+                  clickhouse-client --host $CLICKHOUSE_HOST --port $CLICKHOUSE_PORT --multiquery < "$sql_file" || {
+                    echo "Failed to execute $sql_file, retrying once..."
+                    sleep 5
+                    clickhouse-client --host $CLICKHOUSE_HOST --port $CLICKHOUSE_PORT --multiquery < "$sql_file"
+                  }
                 fi
               done
-              echo "ClickHouse initialization completed"
+              echo "ClickHouse initialization completed successfully"
           volumeMounts:
             - name: clickhouse-init-scripts
               mountPath: /docker-entrypoint-initdb.d
