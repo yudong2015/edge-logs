@@ -141,14 +141,21 @@ clickhouse:
     # ClickHouse configuration
     retention_days: 30
 
-  # PostStart hook to execute initialization scripts after ClickHouse starts
-  postStart:
-    enabled: true
-
 # OTEL Collector configuration
 otelCollector:
   enabled: true
   replicaCount: 1
+
+  # Init container to initialize ClickHouse tables before OTEL Collector starts
+  initContainer:
+    enabled: true
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
 
   image:
     registry: "docker.io"  # 明确使用 Docker Hub

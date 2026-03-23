@@ -135,6 +135,38 @@ spec:
         component: data-pipeline
     spec:
       serviceAccountName: otel-collector
+      {{- if .Values.otelCollector.initContainer.enabled }}
+      initContainers:
+        - name: init-clickhouse-tables
+          image: {{ include "edge-logs.clickhouse.image" . }}
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for ClickHouse to be ready..."
+              for i in $(seq 1 60); do
+                if clickhouse-client --host {{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local --port 9000 --query "SELECT 1" &>/dev/null; then
+                  echo "ClickHouse is ready"
+                  break
+                fi
+                echo "Waiting for ClickHouse... ($i/60)"
+                sleep 2
+              done
+
+              echo "Executing ClickHouse initialization scripts..."
+              for sql_file in /docker-entrypoint-initdb.d/*.sql; do
+                if [ -f "$sql_file" ]; then
+                  echo "Executing $sql_file..."
+                  clickhouse-client --host {{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local --port 9000 --multiquery < "$sql_file" || echo "Failed to execute $sql_file"
+                fi
+              done
+              echo "ClickHouse initialization completed"
+          volumeMounts:
+            - name: clickhouse-init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            {{- toYaml .Values.otelCollector.initContainer.resources | nindent 12 }}
+      {{- end }}
       containers:
         - name: otel-collector
           image: {{ include "edge-logs.otelCollector.image" . }}
@@ -180,6 +212,11 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
+        {{- if .Values.otelCollector.initContainer.enabled }}
+        - configMap:
+            name: {{ include "edge-logs.fullname" . }}-clickhouse-init
+          name: clickhouse-init-scripts
+        {{- end }}
         - configMap:
             items:
               - key: otel-collector-config.yaml
