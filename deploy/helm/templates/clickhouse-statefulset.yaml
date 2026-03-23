@@ -128,7 +128,8 @@ data:
 
     -- Materialized view: logs_mv extracts K8s metadata from otel_logs
     -- Issue requirement: create logs_mv materialized view based on otel_logs
-    CREATE MATERIALIZED VIEW IF NOT EXISTS `logs_mv` TO `logs_mv` AS
+    -- Note: View name must be different from target table name
+    CREATE MATERIALIZED VIEW IF NOT EXISTS logs_mv_view TO logs_mv AS
     SELECT
         Timestamp,
         TimestampTime,
