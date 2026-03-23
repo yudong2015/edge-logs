@@ -42,7 +42,7 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 	// Falls back gracefully if the column doesn't exist (error handling returns true below).
 	query := `
 		SELECT 1
-		FROM logs
+		FROM logs_k8s
 		WHERE ServiceName = ?
 		   OR k8s_namespace_name = ?
 		LIMIT 1
@@ -87,15 +87,15 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 		Name: dataset,
 	}
 
-	// Use ResourceAttributes for fast dataset filtering (same strategy as main query)
+	// Use k8s_namespace_name for fast dataset filtering (same strategy as main query)
 	statsQuery := `
 		SELECT
 			COUNT(*) as total_logs,
 			MIN(Timestamp) as earliest_time,
 			MAX(Timestamp) as latest_time
-		FROM logs
+		FROM logs_k8s
 		WHERE ServiceName = ?
-		   OR ResourceAttributes['k8s.namespace.name'] = ?
+		   OR k8s_namespace_name = ?
 	`
 
 	klog.InfoS("执行数据集统计查询 [DEBUG]",
@@ -131,7 +131,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	partitionQuery := `
 		SELECT COUNT(DISTINCT partition) as partition_count
 		FROM system.parts
-		WHERE table = 'logs'
+		WHERE table = 'logs_k8s'
 		AND database = ?
 		AND active = 1
 	`
@@ -147,7 +147,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	sizeQuery := `
 		SELECT COALESCE(SUM(bytes_on_disk), 0) as data_size_bytes
 		FROM system.parts
-		WHERE table = 'logs'
+		WHERE table = 'logs_k8s'
 		AND database = ?
 		AND active = 1
 	`
@@ -173,15 +173,12 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]string, error) {
 	klog.V(4).InfoS("获取可用数据集列表")
 
-	// Extract namespace from __path__ in ResourceAttributes
-	// Path format: /var/log/containers/<pod-name>_<namespace>_<container-name>-<container-id>.log
-	// ResourceAttributes is a Map(String, String) with key '__path__'
+	// Use k8s_namespace_name column for fast namespace enumeration
 	query := `
 		SELECT DISTINCT
-			splitByString('_', ResourceAttributes['__path__'])[2] as namespace
-		FROM logs
-		WHERE mapContains(ResourceAttributes, '__path__')
-		AND length(splitByString('_', ResourceAttributes['__path__'])) >= 3
+			k8s_namespace_name as namespace
+		FROM logs_k8s
+		WHERE k8s_namespace_name != ''
 		ORDER BY namespace
 	`
 
@@ -264,12 +261,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		return health, nil
 	}
 
-	// Check recent data availability (last 24 hours) - use ResourceAttributes for fast filtering
+	// Check recent data availability (last 24 hours) - use k8s_namespace_name for fast filtering
 	recentDataQuery := `
 		SELECT COUNT(*)
-		FROM logs
+		FROM logs_k8s
 		WHERE ServiceName = ?
-		   OR ResourceAttributes['k8s.namespace.name'] = ?
+		   OR k8s_namespace_name = ?
 		AND Timestamp >= ?
 	`
 
@@ -289,12 +286,12 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 		health.ErrorMessage = "No recent data (last 24 hours)"
 	}
 
-	// Check data freshness (most recent log timestamp) - use ResourceAttributes for fast filtering
+	// Check data freshness (most recent log timestamp) - use k8s_namespace_name for fast filtering
 	freshnessQuery := `
 		SELECT MAX(Timestamp)
-		FROM logs
+		FROM logs_k8s
 		WHERE ServiceName = ?
-		   OR ResourceAttributes['k8s.namespace.name'] = ?
+		   OR k8s_namespace_name = ?
 	`
 
 	var lastTimestamp time.Time

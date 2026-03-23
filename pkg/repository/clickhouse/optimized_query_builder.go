@@ -11,68 +11,28 @@ import (
 	"github.com/outpostos/edge-logs/pkg/model/request"
 )
 
-// OptimizedQueryBuilder uses MATERIALIZED columns for 10-20x better performance
+// OptimizedQueryBuilder uses direct K8s columns for optimal performance
 type OptimizedQueryBuilder struct {
 	*QueryBuilder
-	hasMaterializedColumns bool // Cache the column check result
-	db                      *sql.DB
+	db *sql.DB
 }
 
-// NewOptimizedQueryBuilder creates a query builder that can leverage MATERIALIZED columns
+// NewOptimizedQueryBuilder creates a query builder that leverages direct K8s columns
 func NewOptimizedQueryBuilder(db *sql.DB) *OptimizedQueryBuilder {
 	return &OptimizedQueryBuilder{
-		QueryBuilder:            NewQueryBuilder(),
-		hasMaterializedColumns: false, // Will check on first use
-		db:                      db,
+		QueryBuilder: NewQueryBuilder(),
+		db:           db,
 	}
 }
 
-// checkMaterializedColumns checks if the logs table has MATERIALIZED columns
-func (oqb *OptimizedQueryBuilder) checkMaterializedColumns(ctx context.Context) bool {
-	if oqb.db == nil {
-		return false
-	}
-
-	// Check if k8s_namespace_name column exists (it's a MATERIALIZED column)
-	query := `
-		SELECT count(*)
-		FROM system.columns
-		WHERE database = 'edge_logs'
-		  AND table = 'logs'
-		  AND name = 'k8s_namespace_name'
-		  AND default_kind = 'MATERIALIZED'
-	`
-
-	var count int
-	err := oqb.db.QueryRowContext(ctx, query).Scan(&count)
-	if err != nil {
-		klog.V(3).InfoS("MATERIALIZED列检查失败", "error", err)
-		return false
-	}
-
-	hasColumns := count > 0
-	oqb.hasMaterializedColumns = hasColumns
-
-	klog.V(4).InfoS("MATERIALIZED列检测结果",
-		"has_materialized_columns", hasColumns)
-
-	return hasColumns
-}
-
-// BuildOptimizedLogQuery constructs a query using MATERIALIZED columns when available
+// BuildOptimizedLogQuery constructs a query using direct K8s columns
 func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, req *request.LogQueryRequest) (string, []interface{}, error) {
-	// Check if we have MATERIALIZED columns (cached after first check)
-	if !oqb.hasMaterializedColumns {
-		oqb.checkMaterializedColumns(ctx)
-	}
-
 	klog.V(4).InfoS("构建优化日志查询",
 		"dataset", req.Dataset,
 		"start_time", req.StartTime,
 		"end_time", req.EndTime,
 		"filter", req.Filter,
-		"namespace", req.Namespace,
-		"using_materialized_columns", oqb.hasMaterializedColumns)
+		"namespace", req.Namespace)
 
 	oqb.dataset = req.Dataset
 
@@ -84,16 +44,10 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes
-		FROM logs
+		FROM logs_k8s
 	`)
 
-	if oqb.hasMaterializedColumns {
-		// Use MATERIALIZED columns for 10-20x better performance
-		oqb.buildWithMaterializedColumns(req)
-	} else {
-		// Fall back to Map-based queries (OTEL standard)
-		oqb.buildWithMapColumns(req)
-	}
+	oqb.buildWithK8sColumns(req)
 
 	// Time range filtering
 	if req.StartTime != nil {
@@ -134,110 +88,62 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 	klog.V(4).InfoS("优化日志查询已构建",
 		"dataset", req.Dataset,
 		"condition_count", len(oqb.conditions),
-		"arg_count", len(args),
-		"using_materialized_columns", oqb.hasMaterializedColumns)
+		"arg_count", len(args))
 
 	return query, args, nil
 }
 
-// buildWithMaterializedColumns uses explicit columns for 10-20x better performance
-func (oqb *OptimizedQueryBuilder) buildWithMaterializedColumns(req *request.LogQueryRequest) {
-	// Dataset filtering: use k8s_namespace_name MATERIALIZED column.
-	// In this system, dataset corresponds to the k8s namespace (or ServiceName),
-	// so we mirror the Map fallback logic but with the indexed MATERIALIZED column.
+// buildWithK8sColumns uses direct K8s columns for optimal performance
+func (oqb *OptimizedQueryBuilder) buildWithK8sColumns(req *request.LogQueryRequest) {
+	// Dataset filtering: use k8s_namespace_name column.
+	// In this system, dataset corresponds to the k8s namespace (or ServiceName).
 	if req.Dataset != "" {
 		oqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
-		klog.V(5).InfoS("使用MATERIALIZED k8s_namespace_name列过滤dataset", "dataset", req.Dataset)
+		klog.V(5).InfoS("使用k8s_namespace_name列过滤dataset", "dataset", req.Dataset)
 	}
 
-	// K8s metadata filtering using MATERIALIZED columns
+	// K8s metadata filtering using direct columns
 	if req.Namespace != "" {
 		oqb.AddCondition("k8s_namespace_name = ?", req.Namespace)
-		klog.V(5).InfoS("使用MATERIALIZED k8s_namespace_name列过滤")
+		klog.V(5).InfoS("使用k8s_namespace_name列过滤")
 	}
 
 	if req.PodName != "" {
 		oqb.AddCondition("k8s_pod_name LIKE ?", "%"+req.PodName+"%")
-		klog.V(5).InfoS("使用MATERIALIZED k8s_pod_name列过滤")
+		klog.V(5).InfoS("使用k8s_pod_name列过滤")
 	}
 
 	if req.NodeName != "" {
 		oqb.AddCondition("k8s_node_name = ?", req.NodeName)
-		klog.V(5).InfoS("使用MATERIALIZED k8s_node_name列过滤")
+		klog.V(5).InfoS("使用k8s_node_name列过滤")
 	}
 
 	if req.ContainerName != "" {
 		oqb.AddCondition("k8s_container_name = ?", req.ContainerName)
-		klog.V(5).InfoS("使用MATERIALIZED k8s_container_name列过滤")
+		klog.V(5).InfoS("使用k8s_container_name列过滤")
 	}
 
-	// Host filtering using MATERIALIZED columns
+	// Host filtering using direct columns
 	if req.HostIP != "" {
 		oqb.AddCondition("host_ip = ?", req.HostIP)
-		klog.V(5).InfoS("使用MATERIALIZED host_ip列过滤")
+		klog.V(5).InfoS("使用host_ip列过滤")
 	}
 
 	if req.HostName != "" {
 		oqb.AddCondition("host_name = ?", req.HostName)
-		klog.V(5).InfoS("使用MATERIALIZED host_name列过滤")
-	}
-}
-
-// buildWithMapColumns uses Map fields (OTEL standard, slower)
-func (oqb *OptimizedQueryBuilder) buildWithMapColumns(req *request.LogQueryRequest) {
-	// Dataset filtering (fallback strategy)
-	if req.Dataset != "" {
-		oqb.AddCondition("(ServiceName = ? OR ResourceAttributes['k8s.namespace.name'] = ?)", req.Dataset, req.Dataset)
-		klog.V(5).InfoS("使用Map字段过滤dataset", "dataset", req.Dataset)
-	}
-
-	// K8s metadata filtering from ResourceAttributes map
-	if req.Namespace != "" {
-		oqb.AddCondition("ResourceAttributes['k8s.namespace.name'] = ?", req.Namespace)
-	}
-
-	if req.PodName != "" {
-		oqb.AddCondition("ResourceAttributes['k8s.pod.name'] = ?", req.PodName)
-	}
-
-	if req.NodeName != "" {
-		oqb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)
-	}
-
-	// Host filtering from ResourceAttributes map
-	if req.HostIP != "" {
-		oqb.AddCondition("ResourceAttributes['host.ip'] = ?", req.HostIP)
-	}
-
-	if req.HostName != "" {
-		oqb.AddCondition("ResourceAttributes['host.name'] = ?", req.HostName)
-	}
-
-	// Container filtering from ResourceAttributes map
-	if req.ContainerName != "" {
-		oqb.AddCondition("ResourceAttributes['k8s.container.name'] = ?", req.ContainerName)
+		klog.V(5).InfoS("使用host_name列过滤")
 	}
 }
 
 // BuildOptimizedCountQuery constructs an optimized count query
 func (oqb *OptimizedQueryBuilder) BuildOptimizedCountQuery(ctx context.Context, req *request.LogQueryRequest) (string, []interface{}, error) {
-	// Check if we have MATERIALIZED columns
-	if !oqb.hasMaterializedColumns {
-		oqb.checkMaterializedColumns(ctx)
-	}
-
 	klog.V(4).InfoS("构建优化计数查询",
-		"dataset", req.Dataset,
-		"using_materialized_columns", oqb.hasMaterializedColumns)
+		"dataset", req.Dataset)
 
 	oqb.dataset = req.Dataset
-	oqb.baseQuery.WriteString("SELECT count(*) FROM logs")
+	oqb.baseQuery.WriteString("SELECT count(*) FROM logs_k8s")
 
-	if oqb.hasMaterializedColumns {
-		oqb.buildWithMaterializedColumns(req)
-	} else {
-		oqb.buildWithMapColumns(req)
-	}
+	oqb.buildWithK8sColumns(req)
 
 	if req.StartTime != nil {
 		oqb.AddCondition("Timestamp >= ?", *req.StartTime)
@@ -263,8 +169,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedCountQuery(ctx context.Context, 
 
 	klog.V(4).InfoS("优化计数查询已构建",
 		"dataset", req.Dataset,
-		"condition_count", len(oqb.conditions),
-		"using_materialized_columns", oqb.hasMaterializedColumns)
+		"condition_count", len(oqb.conditions))
 
 	return query, args, nil
 }
@@ -277,61 +182,48 @@ func (oqb *OptimizedQueryBuilder) GetColumnUsageStats(ctx context.Context) (map[
 		return stats, nil
 	}
 
-	// Check if MATERIALIZED columns exist
-	hasMaterialized := oqb.checkMaterializedColumns(ctx)
-	stats["has_materialized_columns"] = hasMaterialized
+	// Count non-null values in key K8s columns
+	columnsToCheck := []string{
+		"k8s_namespace_name",
+		"k8s_pod_name",
+		"k8s_container_name",
+		"dataset",
+	}
 
-	if hasMaterialized {
-		// Count non-null values in key MATERIALIZED columns
-		columnsToCheck := []string{
-			"k8s_namespace_name",
-			"k8s_pod_name",
-			"k8s_container_name",
-			"dataset",
-		}
-
-		for _, col := range columnsToCheck {
-			query := fmt.Sprintf("SELECT countIf(%s != '') FROM logs", col)
-			var count int
-			if err := oqb.db.QueryRowContext(ctx, query).Scan(&count); err == nil {
-				stats[col+"_non_null_count"] = count
-			}
+	for _, col := range columnsToCheck {
+		query := fmt.Sprintf("SELECT countIf(%s != '') FROM logs_k8s", col)
+		var count int
+		if err := oqb.db.QueryRowContext(ctx, query).Scan(&count); err == nil {
+			stats[col+"_non_null_count"] = count
 		}
 	}
 
 	return stats, nil
 }
 
-// EstimateQueryPerformance estimates query performance based on column type
+// EstimateQueryPerformance estimates query performance based on filters used
 func (oqb *OptimizedQueryBuilder) EstimateQueryPerformance(req *request.LogQueryRequest) map[string]string {
 	estimate := make(map[string]string)
 
-	// Check if query uses MATERIALIZED columns
-	usesMaterialized := false
+	usesK8sColumns := req.Namespace != "" || req.PodName != "" || req.ContainerName != "" ||
+		req.HostIP != "" || req.HostName != "" || req.Dataset != ""
 
-	if oqb.hasMaterializedColumns {
-		if req.Namespace != "" || req.PodName != "" || req.ContainerName != "" ||
-			req.HostIP != "" || req.HostName != "" || req.Dataset != "" {
-			usesMaterialized = true
-		}
-	}
-
-	if usesMaterialized {
-		estimate["query_type"] = "MATERIALIZED_COLUMN_QUERY"
+	if usesK8sColumns {
+		estimate["query_type"] = "K8S_COLUMN_QUERY"
 		estimate["expected_performance"] = "FAST"
 		estimate["performance_factor"] = "10-20x faster than Map query"
 		estimate["index_usage"] = "Direct index on explicit columns"
 	} else {
-		estimate["query_type"] = "MAP_FIELD_QUERY"
-		estimate["expected_performance"] = "SLOWER"
-		estimate["performance_factor"] = "Standard OTEL performance"
-		estimate["index_usage"] = "Bloom filter on Map values"
+		estimate["query_type"] = "TIME_RANGE_QUERY"
+		estimate["expected_performance"] = "STANDARD"
+		estimate["performance_factor"] = "Standard time-range performance"
+		estimate["index_usage"] = "Primary key time-based index"
 	}
 
 	return estimate
 }
 
-// MaterializedColumnInfo provides information about MATERIALIZED columns
+// MaterializedColumnInfo provides information about K8s columns
 type MaterializedColumnInfo struct {
 	ColumnName  string
 	SourceMap   string
@@ -340,7 +232,7 @@ type MaterializedColumnInfo struct {
 	Benefit     string
 }
 
-// GetMaterializedColumnInfo returns information about all MATERIALIZED columns
+// GetMaterializedColumnInfo returns information about all K8s columns
 func GetMaterializedColumnInfo() []MaterializedColumnInfo {
 	return []MaterializedColumnInfo{
 		{
@@ -399,11 +291,11 @@ func GetMaterializedColumnInfo() []MaterializedColumnInfo {
 func LogMaterializedColumnUsage(ctx context.Context, db *sql.DB) {
 	stats, err := queryMaterializedColumnStats(ctx, db)
 	if err != nil {
-		klog.V(3).ErrorS(err, "MATERIALIZED列统计查询失败")
+		klog.V(3).ErrorS(err, "K8s列统计查询失败")
 		return
 	}
 
-	klog.V(4).InfoS("MATERIALIZED列使用统计",
+	klog.V(4).InfoS("K8s列使用统计",
 		"total_rows", stats["total_rows"],
 		"dataset_filled", stats["dataset_filled"],
 		"k8s_namespace_filled", stats["k8s_namespace_filled"],
@@ -416,7 +308,7 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 
 	// Total rows
 	var totalRows int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM logs").Scan(&totalRows); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM logs_k8s").Scan(&totalRows); err != nil {
 		return nil, err
 	}
 	stats["total_rows"] = totalRows
@@ -427,8 +319,8 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 
 	// Check fill rate for key columns
 	columns := []struct {
-		name      string
-		statsKey  string
+		name     string
+		statsKey string
 	}{
 		{"dataset", "dataset_filled"},
 		{"k8s_namespace_name", "k8s_namespace_filled"},
@@ -437,7 +329,7 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 
 	for _, col := range columns {
 		var filled int
-		query := fmt.Sprintf("SELECT countIf(%s != '') FROM logs", col.name)
+		query := fmt.Sprintf("SELECT countIf(%s != '') FROM logs_k8s", col.name)
 		if err := db.QueryRowContext(ctx, query).Scan(&filled); err == nil {
 			stats[col.statsKey] = filled
 		}

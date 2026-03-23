@@ -319,7 +319,7 @@ func (r *ClickHouseRepository) HealthCheck(ctx context.Context) error {
 	}
 
 	// Test a simple query to verify unified logs table access
-	query := "SELECT count(*) FROM logs LIMIT 1"
+	query := "SELECT count(*) FROM logs_k8s LIMIT 1"
 	db := r.cm.GetDB()
 
 	var count int

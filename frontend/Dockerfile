@@ -14,13 +14,13 @@ COPY package.json pnpm-lock.yaml ./
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source files
+# Copy source files (excluding node_modules via .dockerignore)
 COPY . .
 
 # Build application
 # Set VITE_API_BASE_URL to empty string to use relative paths (nginx proxy)
 # In production, frontend uses relative paths and nginx proxies to backend
-RUN VITE_API_BASE_URL="" pnpm run build
+RUN --mount=type=cache,target=/root/.pnpm-store VITE_API_BASE_URL="" pnpm run build
 
 # Stage 2: Production stage with nginx
 FROM nginx:alpine

@@ -41,27 +41,21 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes,
-			-- Extract K8s metadata from __path__
-			-- Path format: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
-			-- Extract pod name (last element after splitting by '/')
-			arrayElement(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]), length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))) as k8s_pod_name,
-			splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name,
-			-- Extract container name (everything before the last '-' followed by 64-char hash and .log)
-			substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69) as k8s_container_name,
-			-- Extract 64-char hash (before .log)
-			substring(splitByString('_', ResourceAttributes['__path__'])[3], length(splitByString('_', ResourceAttributes['__path__'])[3]) - 68, 64) as k8s_container_id
-		FROM logs
+			k8s_pod_name,
+			k8s_namespace_name,
+			k8s_container_name,
+			k8s_container_id
+		FROM logs_k8s
 	`)
 
 	// Build comprehensive WHERE conditions with proper precedence
 	var whereConditions []string
 	var args []interface{}
 
-	// 1. Dataset filter: extract namespace from __path__
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	// 1. Dataset filter: match by ServiceName or k8s_namespace_name
 	if req.Dataset != "" {
-		whereConditions = append(whereConditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
-		args = append(args, req.Dataset)
+		whereConditions = append(whereConditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
+		args = append(args, req.Dataset, req.Dataset)
 	}
 
 	// 2. Time range filters (optimized for DateTime64(9))
@@ -97,12 +91,12 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	}
 
 	if req.NodeName != "" {
-		whereConditions = append(whereConditions, "LogAttributes['k8s.node.name'] = ?")
+		whereConditions = append(whereConditions, "k8s_node_name = ?")
 		args = append(args, req.NodeName)
 	}
 
 	if req.ContainerName != "" {
-		whereConditions = append(whereConditions, "LogAttributes['k8s.container.name'] = ?")
+		whereConditions = append(whereConditions, "k8s_container_name = ?")
 		args = append(args, req.ContainerName)
 	}
 
@@ -110,7 +104,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	whereClause := strings.Join(whereConditions, " AND ")
 	query := fmt.Sprintf(`%s
 		WHERE %s
-		ORDER BY Timestamp DESC, LogAttributes['k8s.namespace.name'] ASC, LogAttributes['k8s.pod.name'] ASC
+		ORDER BY Timestamp DESC, k8s_namespace_name ASC, k8s_pod_name ASC
 		LIMIT %d OFFSET %d`,
 		kqb.baseQuery.String(),
 		whereClause,
@@ -133,11 +127,10 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 	var whereConditions []string
 	var args []interface{}
 
-	// Dataset filter: extract namespace from __path__
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	// Dataset filter: match by ServiceName or k8s_namespace_name
 	if req.Dataset != "" {
-		whereConditions = append(whereConditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
-		args = append(args, req.Dataset)
+		whereConditions = append(whereConditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
+		args = append(args, req.Dataset, req.Dataset)
 	}
 
 	// Time range filters
@@ -173,18 +166,18 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 	}
 
 	if req.NodeName != "" {
-		whereConditions = append(whereConditions, "LogAttributes['k8s.node.name'] = ?")
+		whereConditions = append(whereConditions, "k8s_node_name = ?")
 		args = append(args, req.NodeName)
 	}
 
 	if req.ContainerName != "" {
-		whereConditions = append(whereConditions, "LogAttributes['k8s.container.name'] = ?")
+		whereConditions = append(whereConditions, "k8s_container_name = ?")
 		args = append(args, req.ContainerName)
 	}
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs
+		FROM logs_k8s
 		WHERE %s`,
 		strings.Join(whereConditions, " AND "))
 

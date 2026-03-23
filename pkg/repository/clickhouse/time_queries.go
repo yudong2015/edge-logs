@@ -40,22 +40,16 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes,
-			-- Extract K8s metadata from __path__
-			-- Path format: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
-			-- Extract pod name (last element after splitting by '/')
-			arrayElement(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]), length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))) as k8s_pod_name,
-			splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name,
-			-- Extract container name (everything before the last '-' followed by 64-char hash and .log)
-			substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69) as k8s_container_name,
-			-- Extract 64-char hash (before .log)
-			substring(splitByString('_', ResourceAttributes['__path__'])[3], length(splitByString('_', ResourceAttributes['__path__'])[3]) - 68, 64) as k8s_container_id
-		FROM logs
+			k8s_pod_name,
+			k8s_namespace_name,
+			k8s_container_name,
+			k8s_container_id
+		FROM logs_k8s
 	`)
 
-	// 1. Dataset filtering: extract namespace from __path__
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	// 1. Dataset filtering
 	if req.Dataset != "" {
-		tqb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
+		tqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
 	}
 
 	// 2. Time range conditions with millisecond precision using toDateTime64
@@ -100,12 +94,12 @@ func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryReque
 	tqb.Reset()
 
 	tqb.dataset = req.Dataset
-	tqb.baseQuery.WriteString("SELECT count(*) FROM logs")
+	tqb.baseQuery.WriteString("SELECT count(*) FROM logs_k8s")
 
 	// Same filtering logic as main query but without ordering/pagination
 	// Extract namespace from __path__ instead of using empty ServiceName
 	if req.Dataset != "" {
-		tqb.AddCondition("splitByString('_', ResourceAttributes['__path__'])[2] = ?", req.Dataset)
+		tqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
 	}
 
 	if req.StartTime != nil {
@@ -160,10 +154,10 @@ func (tqb *TimeQueryBuilder) SetTimeOptimizedOrdering(direction string) {
 func (tqb *TimeQueryBuilder) applyAdditionalFilters(req *request.LogQueryRequest) {
 	// K8s metadata filtering (from LogAttributes map)
 	if req.Namespace != "" {
-		tqb.AddCondition("LogAttributes['k8s.namespace.name'] = ?", req.Namespace)
+		tqb.AddCondition("k8s_namespace_name = ?", req.Namespace)
 	}
 	if req.PodName != "" {
-		tqb.AddCondition("LogAttributes['k8s.pod.name'] LIKE ?", "%"+req.PodName+"%")
+		tqb.AddCondition("k8s_pod_name LIKE ?", "%"+req.PodName+"%")
 	}
 	if req.NodeName != "" {
 		tqb.AddCondition("LogAttributes['k8s.node.name'] = ?", req.NodeName)

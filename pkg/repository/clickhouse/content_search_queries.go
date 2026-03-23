@@ -59,7 +59,7 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchQuery(req *request.LogQuer
 	// Construct final query (unified logs table)
 	query := fmt.Sprintf(`
 		%s
-		FROM logs
+		FROM logs_k8s
 		WHERE %s
 		%s
 		%s
@@ -88,7 +88,7 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 	// Construct count query (unified logs table)
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs
+		FROM logs_k8s
 		WHERE %s
 	`, strings.Join(whereConditions, " AND "))
 
@@ -113,15 +113,10 @@ func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.Cont
 		"ScopeVersion",
 		"ScopeAttributes",
 		"LogAttributes",
-		// K8s metadata extracted from __path__
-		// Path format: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log
-		// Extract pod name (last element after splitting by '/')
-		"arrayElement(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]), length(splitByString('/', splitByString('_', ResourceAttributes['__path__'])[1]))) as k8s_pod_name",
-		"splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name",
-		// Extract container name (everything before the last '-' followed by 64-char hash and .log)
-		"substring(splitByString('_', ResourceAttributes['__path__'])[3], 1, length(splitByString('_', ResourceAttributes['__path__'])[3]) - 69) as k8s_container_name",
-		// Extract 64-char hash (before .log)
-		"substring(splitByString('_', ResourceAttributes['__path__'])[3], length(splitByString('_', ResourceAttributes['__path__'])[3]) - 68, 64) as k8s_container_id",
+		"k8s_pod_name",
+		"k8s_namespace_name",
+		"k8s_container_name",
+		"k8s_container_id",
 	}
 
 	selectFields := baseFields
@@ -148,11 +143,10 @@ func (b *ContentSearchQueryBuilder) buildWhereClause(req *request.LogQueryReques
 	var conditions []string
 	var args []interface{}
 
-	// Dataset condition: extract namespace from __path__
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	// Dataset condition
 	if req.Dataset != "" {
-		conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
-		args = append(args, req.Dataset)
+		conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
+		args = append(args, req.Dataset, req.Dataset)
 	}
 
 	// Time range conditions
@@ -537,11 +531,10 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 	var conditions []string
 	var args []interface{}
 
-	// Dataset condition: extract namespace from __path__
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	// Dataset condition
 	if req.Dataset != "" {
-		conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
-		args = append(args, req.Dataset)
+		conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
+		args = append(args, req.Dataset, req.Dataset)
 	}
 
 	// Time range conditions
@@ -565,11 +558,11 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 		       SeverityText, SeverityNumber, ServiceName, Body,
 		       ResourceSchemaUrl, ResourceAttributes,
 		       ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, LogAttributes,
-		       splitByString('_', ResourceAttributes['__path__'])[1] as k8s_pod_name,
-		       splitByString('_', ResourceAttributes['__path__'])[2] as k8s_namespace_name,
-		       splitByString('_', ResourceAttributes['__path__'])[3] as k8s_container_name,
-		       substring(ResourceAttributes['__path__'], length(ResourceAttributes['__path__']) - position(ResourceAttributes['__path__'], '_') - 4) as k8s_container_id
-		FROM logs
+		       k8s_pod_name,
+		       k8s_namespace_name,
+		       k8s_container_name,
+		       k8s_container_id
+		FROM logs_k8s
 		WHERE %s
 		ORDER BY Timestamp DESC
 		LIMIT %d OFFSET %d
@@ -583,11 +576,10 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 	var conditions []string
 	var args []interface{}
 
-	// Dataset condition: extract namespace from __path__
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+	// Dataset condition
 	if req.Dataset != "" {
-		conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
-		args = append(args, req.Dataset)
+		conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
+		args = append(args, req.Dataset, req.Dataset)
 	}
 
 	// Time range conditions
@@ -608,7 +600,7 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM logs
+		FROM logs_k8s
 		WHERE %s
 	`, strings.Join(conditions, " AND "))
 

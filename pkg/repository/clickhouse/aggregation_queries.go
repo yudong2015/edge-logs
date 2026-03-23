@@ -15,7 +15,7 @@ type AggregationQueryBuilder struct {
 // NewAggregationQueryBuilder creates a new aggregation query builder
 func NewAggregationQueryBuilder() *AggregationQueryBuilder {
 	return &AggregationQueryBuilder{
-		baseQuery: "SELECT %s FROM logs WHERE %s GROUP BY %s %s %s",
+		baseQuery: "SELECT %s FROM logs_k8s WHERE %s GROUP BY %s %s %s",
 	}
 }
 
@@ -48,7 +48,7 @@ func (b *AggregationQueryBuilder) BuildAggregationQuery(req *request.Aggregation
 	limitClause := b.buildLimitClause(req)
 
 	// Assemble final query
-	query := fmt.Sprintf("SELECT %s FROM logs WHERE %s",
+	query := fmt.Sprintf("SELECT %s FROM logs_k8s WHERE %s",
 		selectClause, strings.Join(whereConditions, " AND "))
 
 	if groupByClause != "" {
@@ -103,15 +103,15 @@ func (b *AggregationQueryBuilder) buildDimensionField(dim request.AggregationDim
 	case request.DimensionSeverity:
 		return "SeverityText", nil
 	case request.DimensionNamespace:
-		return "ResourceAttributes['k8s.namespace.name']", nil
+		return "k8s_namespace_name", nil
 	case request.DimensionPodName:
-		return "ResourceAttributes['k8s.pod.name']", nil
+		return "k8s_pod_name", nil
 	case request.DimensionNodeName:
 		return "LogAttributes['k8s.node.name']", nil
 	case request.DimensionHostName:
-		return "ResourceAttributes['host.name']", nil
+		return "host_name", nil
 	case request.DimensionContainerName:
-		return "ResourceAttributes['k8s.container.name']", nil
+		return "k8s_container_name", nil
 	case request.DimensionDataset:
 		return "ServiceName", nil
 	case request.DimensionTimestamp:
@@ -185,10 +185,9 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 	var conditions []string
 	var args []interface{}
 
-	// Dataset filter: extract namespace from __path__ (replaces ServiceName)
-	// Path format: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
-	conditions = append(conditions, "splitByString('_', ResourceAttributes['__path__'])[2] = ?")
-	args = append(args, req.Dataset)
+	// Dataset filter
+	conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
+	args = append(args, req.Dataset, req.Dataset)
 
 	// Time range filters
 	if req.StartTime != nil {
@@ -207,7 +206,7 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 			placeholders[i] = "?"
 			args = append(args, req.Namespaces[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("ResourceAttributes['k8s.namespace.name'] IN (%s)", strings.Join(placeholders, ", ")))
+		conditions = append(conditions, fmt.Sprintf("k8s_namespace_name IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
 	// Pod name filters (from ResourceAttributes)
@@ -217,7 +216,7 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 			placeholders[i] = "?"
 			args = append(args, req.PodNames[i])
 		}
-		conditions = append(conditions, fmt.Sprintf("ResourceAttributes['k8s.pod.name'] IN (%s)", strings.Join(placeholders, ", ")))
+		conditions = append(conditions, fmt.Sprintf("k8s_pod_name IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
 	// Severity filter
