@@ -46,6 +46,10 @@ apiserver:
     initialDelaySeconds: 10
     periodSeconds: 10
 
+  # Init container to wait for ClickHouse before starting apiserver
+  initContainer:
+    enabled: true
+
   config:
     clickhouse:
       host: ""  # Will be auto-generated
