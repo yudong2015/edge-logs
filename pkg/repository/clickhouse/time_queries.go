@@ -47,9 +47,9 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 		FROM logs_k8s
 	`)
 
-	// 1. Dataset filtering
+	// 1. Dataset filtering - use dataset column directly
 	if req.Dataset != "" {
-		tqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
+		tqb.AddCondition("dataset = ?", req.Dataset)
 	}
 
 	// 2. Time range conditions with millisecond precision using toDateTime64

@@ -75,6 +75,12 @@ ssh root@119.8.182.199 "
 
 将 `[NEW_TAG]` 替换为 Step 2 输出的实际 tag 值。
 
+### Step 4.5: 暴露前端服务
+
+```bash
+kubectl apply -f /root/frontend-svc.yaml
+```
+
 ### Step 5: 验证部署
 
 ```bash

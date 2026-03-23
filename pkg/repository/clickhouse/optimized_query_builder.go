@@ -95,11 +95,10 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 
 // buildWithK8sColumns uses direct K8s columns for optimal performance
 func (oqb *OptimizedQueryBuilder) buildWithK8sColumns(req *request.LogQueryRequest) {
-	// Dataset filtering: use k8s_namespace_name column.
-	// In this system, dataset corresponds to the k8s namespace (or ServiceName).
+	// Dataset filtering: use dataset column directly
 	if req.Dataset != "" {
-		oqb.AddCondition("(ServiceName = ? OR k8s_namespace_name = ?)", req.Dataset, req.Dataset)
-		klog.V(5).InfoS("使用k8s_namespace_name列过滤dataset", "dataset", req.Dataset)
+		oqb.AddCondition("dataset = ?", req.Dataset)
+		klog.V(5).InfoS("使用dataset列过滤", "dataset", req.Dataset)
 	}
 
 	// K8s metadata filtering using direct columns

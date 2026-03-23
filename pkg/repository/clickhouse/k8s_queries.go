@@ -52,10 +52,10 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 	var whereConditions []string
 	var args []interface{}
 
-	// 1. Dataset filter: match by ServiceName or k8s_namespace_name
+	// 1. Dataset filter: use dataset column directly
 	if req.Dataset != "" {
-		whereConditions = append(whereConditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
-		args = append(args, req.Dataset, req.Dataset)
+		whereConditions = append(whereConditions, "dataset = ?")
+		args = append(args, req.Dataset)
 	}
 
 	// 2. Time range filters (optimized for DateTime64(9))
@@ -127,10 +127,10 @@ func (kqb *K8sQueryBuilder) BuildK8sCountQuery(req *request.LogQueryRequest) (st
 	var whereConditions []string
 	var args []interface{}
 
-	// Dataset filter: match by ServiceName or k8s_namespace_name
+	// Dataset filter: use dataset column directly
 	if req.Dataset != "" {
-		whereConditions = append(whereConditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
-		args = append(args, req.Dataset, req.Dataset)
+		whereConditions = append(whereConditions, "dataset = ?")
+		args = append(args, req.Dataset)
 	}
 
 	// Time range filters

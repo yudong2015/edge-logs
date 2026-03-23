@@ -185,9 +185,11 @@ func (b *AggregationQueryBuilder) buildWhereClause(req *request.AggregationReque
 	var conditions []string
 	var args []interface{}
 
-	// Dataset filter
-	conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
-	args = append(args, req.Dataset, req.Dataset)
+	// Dataset filter: use dataset column directly
+	if req.Dataset != "" {
+		conditions = append(conditions, "dataset = ?")
+		args = append(args, req.Dataset)
+	}
 
 	// Time range filters
 	if req.StartTime != nil {

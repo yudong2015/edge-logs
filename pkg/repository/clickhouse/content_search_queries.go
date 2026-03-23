@@ -145,8 +145,8 @@ func (b *ContentSearchQueryBuilder) buildWhereClause(req *request.LogQueryReques
 
 	// Dataset condition
 	if req.Dataset != "" {
-		conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
-		args = append(args, req.Dataset, req.Dataset)
+		conditions = append(conditions, "dataset = ?")
+		args = append(args, req.Dataset)
 	}
 
 	// Time range conditions
@@ -533,8 +533,8 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 
 	// Dataset condition
 	if req.Dataset != "" {
-		conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
-		args = append(args, req.Dataset, req.Dataset)
+		conditions = append(conditions, "dataset = ?")
+		args = append(args, req.Dataset)
 	}
 
 	// Time range conditions
@@ -578,8 +578,8 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 
 	// Dataset condition
 	if req.Dataset != "" {
-		conditions = append(conditions, "(ServiceName = ? OR k8s_namespace_name = ?)")
-		args = append(args, req.Dataset, req.Dataset)
+		conditions = append(conditions, "dataset = ?")
+		args = append(args, req.Dataset)
 	}
 
 	// Time range conditions
