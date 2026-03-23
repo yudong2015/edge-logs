@@ -44,7 +44,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 			ResourceSchemaUrl, ResourceAttributes,
 			ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
 			LogAttributes
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 	`)
 
 	oqb.buildWithK8sColumns(req)
@@ -136,7 +136,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedCountQuery(ctx context.Context, 
 		"dataset", req.Dataset)
 
 	oqb.dataset = req.Dataset
-	oqb.baseQuery.WriteString("SELECT count(*) FROM " + "`logs-mv`")
+	oqb.baseQuery.WriteString("SELECT count(*) FROM " + "`logs_mv`")
 
 	oqb.buildWithK8sColumns(req)
 
@@ -186,7 +186,7 @@ func (oqb *OptimizedQueryBuilder) GetColumnUsageStats(ctx context.Context) (map[
 	}
 
 	for _, col := range columnsToCheck {
-		query := fmt.Sprintf("SELECT countIf(%s != '') FROM "+`"`+"logs-mv"+`"`, col)
+		query := fmt.Sprintf("SELECT countIf(%s != '') FROM "+`"`+"logs_mv"+`"`, col)
 		var count int
 		if err := oqb.db.QueryRowContext(ctx, query).Scan(&count); err == nil {
 			stats[col+"_non_null_count"] = count
@@ -301,7 +301,7 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 
 	// Total rows
 	var totalRows int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM "+`"`+"logs-mv"+`"`).Scan(&totalRows); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM "+`"`+"logs_mv"+`"`).Scan(&totalRows); err != nil {
 		return nil, err
 	}
 	stats["total_rows"] = totalRows
@@ -322,7 +322,7 @@ func queryMaterializedColumnStats(ctx context.Context, db *sql.DB) (map[string]i
 
 	for _, col := range columns {
 		var filled int
-		query := fmt.Sprintf("SELECT countIf(%s != '') FROM "+`"`+"logs-mv"+`"`, col.name)
+		query := fmt.Sprintf("SELECT countIf(%s != '') FROM "+`"`+"logs_mv"+`"`, col.name)
 		if err := db.QueryRowContext(ctx, query).Scan(&filled); err == nil {
 			stats[col.statsKey] = filled
 		}

@@ -44,7 +44,7 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 			namespace_name,
 			container_name,
 			container_id
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 	`)
 
 	// 1. Dataset filtering - use dataset column directly
@@ -94,7 +94,7 @@ func (tqb *TimeQueryBuilder) BuildTimeRangeCountQuery(req *request.LogQueryReque
 	tqb.Reset()
 
 	tqb.dataset = req.Dataset
-	tqb.baseQuery.WriteString("SELECT count(*) FROM " + "`logs-mv`")
+	tqb.baseQuery.WriteString("SELECT count(*) FROM " + "`logs_mv`")
 
 	// Same filtering logic as main query but without ordering/pagination
 	// Use dataset column directly

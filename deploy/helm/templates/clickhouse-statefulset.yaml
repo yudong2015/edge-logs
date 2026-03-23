@@ -81,10 +81,10 @@ data:
     TTL TimestampTime + INTERVAL {{ .Values.clickhouse.config.retention_days }} DAY DELETE
     SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
-    -- Materialized view target table: logs-mv with extracted K8s fields
+    -- Materialized view target table: logs_mv with extracted K8s fields
     -- Issue requirement: extract dataset, host_ip, namespace_name, pod_name,
     -- container_name, timestamp, content, severity, container_id, pod_uid
-    CREATE TABLE IF NOT EXISTS `logs-mv` (
+    CREATE TABLE IF NOT EXISTS `logs_mv` (
         -- OTEL Standard Fields
         Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
         TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(8), ZSTD(1)),
@@ -126,9 +126,9 @@ data:
     TTL TimestampTime + INTERVAL {{ .Values.clickhouse.config.retention_days }} DAY DELETE
     SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
-    -- Materialized view: logs-mv extracts K8s metadata from otel_logs
-    -- Issue requirement: create logs-mv materialized view based on otel_logs
-    CREATE MATERIALIZED VIEW IF NOT EXISTS `logs-mv` TO `logs-mv` AS
+    -- Materialized view: logs_mv extracts K8s metadata from otel_logs
+    -- Issue requirement: create logs_mv materialized view based on otel_logs
+    CREATE MATERIALIZED VIEW IF NOT EXISTS `logs_mv` TO `logs_mv` AS
     SELECT
         Timestamp,
         TimestampTime,

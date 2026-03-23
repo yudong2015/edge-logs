@@ -42,7 +42,7 @@ func (r *ClickHouseRepository) DatasetExists(ctx context.Context, dataset string
 	// Falls back gracefully if the column doesn't exist (error handling returns true below).
 	query := `
 		SELECT 1
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE ServiceName = ?
 		   OR namespace_name = ?
 		LIMIT 1
@@ -93,7 +93,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 			COUNT(*) as total_logs,
 			MIN(Timestamp) as earliest_time,
 			MAX(Timestamp) as latest_time
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE ServiceName = ?
 		   OR namespace_name = ?
 	`
@@ -131,7 +131,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	partitionQuery := `
 		SELECT COUNT(DISTINCT partition) as partition_count
 		FROM system.parts
-		WHERE table = '` + "`logs-mv`" + `'
+		WHERE table = '` + "`logs_mv`" + `'
 		AND database = ?
 		AND active = 1
 	`
@@ -147,7 +147,7 @@ func (r *ClickHouseRepository) GetDatasetStats(ctx context.Context, dataset stri
 	sizeQuery := `
 		SELECT COALESCE(SUM(bytes_on_disk), 0) as data_size_bytes
 		FROM system.parts
-		WHERE table = '` + "`logs-mv`" + `'
+		WHERE table = '` + "`logs_mv`" + `'
 		AND database = ?
 		AND active = 1
 	`
@@ -177,7 +177,7 @@ func (r *ClickHouseRepository) ListAvailableDatasets(ctx context.Context) ([]str
 	query := `
 		SELECT DISTINCT
 			namespace_name as namespace
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE namespace_name != ''
 		ORDER BY namespace
 	`
@@ -264,7 +264,7 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 	// Check recent data availability (last 24 hours) - use namespace_name for fast filtering
 	recentDataQuery := `
 		SELECT COUNT(*)
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE ServiceName = ?
 		   OR namespace_name = ?
 		AND Timestamp >= ?
@@ -289,7 +289,7 @@ func (r *ClickHouseRepository) GetDatasetHealth(ctx context.Context, dataset str
 	// Check data freshness (most recent log timestamp) - use namespace_name for fast filtering
 	freshnessQuery := `
 		SELECT MAX(Timestamp)
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE ServiceName = ?
 		   OR namespace_name = ?
 	`

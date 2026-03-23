@@ -59,7 +59,7 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchQuery(req *request.LogQuer
 	// Construct final query (unified logs table)
 	query := fmt.Sprintf(`
 		%s
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE %s
 		%s
 		%s
@@ -88,7 +88,7 @@ func (b *ContentSearchQueryBuilder) BuildContentSearchCountQuery(req *request.Lo
 	// Construct count query (unified logs table)
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE %s
 	`, strings.Join(whereConditions, " AND "))
 
@@ -562,7 +562,7 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 		       namespace_name,
 		       container_name,
 		       container_id
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE %s
 		ORDER BY Timestamp DESC
 		LIMIT %d OFFSET %d
@@ -600,7 +600,7 @@ func (b *ContentSearchQueryBuilder) buildBasicCountQuery(req *request.LogQueryRe
 
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM ` + "`logs-mv`" + `
+		FROM ` + "`logs_mv`" + `
 		WHERE %s
 	`, strings.Join(conditions, " AND "))
 
