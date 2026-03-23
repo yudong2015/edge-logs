@@ -38,7 +38,7 @@ func (kqb *K8sQueryBuilder) BuildK8sOptimizedQuery(req *request.LogQueryRequest)
 		SELECT
 			Timestamp,
 			SeverityText, SeverityNumber, ServiceName,
-			Body AS Content,
+			Content AS Body,
 			pod_name,
 			namespace_name,
 			container_name,

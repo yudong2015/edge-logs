@@ -37,7 +37,7 @@ func (tqb *TimeQueryBuilder) BuildOptimizedTimeRangeQuery(req *request.LogQueryR
 		SELECT
 			Timestamp,
 			SeverityText, SeverityNumber, ServiceName,
-			Body AS Content,
+			Content AS Body,
 			pod_name,
 			namespace_name,
 			container_name,

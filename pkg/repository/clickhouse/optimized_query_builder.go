@@ -41,7 +41,7 @@ func (oqb *OptimizedQueryBuilder) BuildOptimizedLogQuery(ctx context.Context, re
 		SELECT
 			Timestamp,
 			SeverityText, SeverityNumber, ServiceName,
-			Body AS Content
+			Content
 		FROM ` + "`logs_mv`" + `
 	`)
 

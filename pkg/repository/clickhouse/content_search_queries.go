@@ -102,7 +102,7 @@ func (b *ContentSearchQueryBuilder) buildSelectClause(contentSearch *search.Cont
 		"SeverityText",
 		"SeverityNumber",
 		"ServiceName",
-		"Body AS Content",
+		"Content",
 		"pod_name",
 		"namespace_name",
 		"container_name",
@@ -546,7 +546,7 @@ func (b *ContentSearchQueryBuilder) buildBasicQuery(req *request.LogQueryRequest
 	query := fmt.Sprintf(`
 		SELECT Timestamp,
 		       SeverityText, SeverityNumber, ServiceName,
-		       Body AS Content,
+		       Content AS Body,
 		       pod_name,
 		       namespace_name,
 		       container_name,
