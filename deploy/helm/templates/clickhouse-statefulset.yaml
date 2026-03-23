@@ -212,6 +212,33 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
+          {{- if .Values.clickhouse.postStart.enabled }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    # Wait for ClickHouse to be ready
+                    for i in $(seq 1 60); do
+                      if clickhouse-client --query "SELECT 1" &>/dev/null; then
+                        break
+                      fi
+                      echo "Waiting for ClickHouse to be ready... ($i/60)"
+                      sleep 2
+                    done
+
+                    # Execute initialization scripts
+                    echo "Executing initialization scripts..."
+                    for sql_file in /docker-entrypoint-initdb.d/*.sql; do
+                      if [ -f "$sql_file" ]; then
+                        echo "Executing $sql_file..."
+                        clickhouse-client --multiquery < "$sql_file" || echo "Failed to execute $sql_file"
+                      fi
+                    done
+                    echo "Initialization completed"
+          {{- end }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse

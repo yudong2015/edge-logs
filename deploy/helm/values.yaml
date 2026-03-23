@@ -141,6 +141,10 @@ clickhouse:
     # ClickHouse configuration
     retention_days: 30
 
+  # PostStart hook to execute initialization scripts after ClickHouse starts
+  postStart:
+    enabled: true
+
 # OTEL Collector configuration
 otelCollector:
   enabled: true
