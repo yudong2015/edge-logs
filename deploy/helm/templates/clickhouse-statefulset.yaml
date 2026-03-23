@@ -362,8 +362,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
-            - name: init-scripts
-              mountPath: /docker-entrypoint-initdb.d
+            # Temporarily disabled to test OTel auto-create schema
+            # - name: init-scripts
+            #   mountPath: /docker-entrypoint-initdb.d
             - name: users-config
               mountPath: /etc/clickhouse-server/users.d/users.xml
               subPath: users.xml
