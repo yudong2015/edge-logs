@@ -142,16 +142,8 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
-	// Validate dataset before executing query
-	klog.InfoS("[Handler] 开始数据集验证 [DEBUG]", "dataset", dataset)
-	if err := h.validateDataset(dataset); err != nil {
-		klog.ErrorS(err, "数据集验证失败 [DEBUG]", "dataset", dataset, "error", err)
-		h.handleDatasetError(resp, err, dataset)
-		return
-	}
-	klog.InfoS("[Handler] 数据集验证通过 [DEBUG]", "dataset", dataset)
-
 	// Execute dataset-scoped query through service layer
+	// Note: Dataset validation removed - query directly, return empty if no data
 	result, err := h.queryService.QueryLogsByDataset(req.Request.Context(), queryReq)
 	if err != nil {
 		duration := time.Since(startTime)
