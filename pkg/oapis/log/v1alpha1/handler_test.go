@@ -30,7 +30,7 @@ func TestParseQueryRequest(t *testing.T) {
 	}{
 		{
 			name:    "basic query",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs",
 			dataset: "test",
 			wantReq: &request.LogQueryRequest{
 				Dataset: "test",
@@ -40,7 +40,7 @@ func TestParseQueryRequest(t *testing.T) {
 		},
 		{
 			name:    "query with time range",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?start_time=" + startTimeStr + "&end_time=" + now.UTC().Format(time.RFC3339),
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?start_time=" + startTimeStr + "&end_time=" + now.UTC().Format(time.RFC3339),
 			dataset: "test",
 			wantReq: &request.LogQueryRequest{
 				Dataset: "test",
@@ -50,7 +50,7 @@ func TestParseQueryRequest(t *testing.T) {
 		},
 		{
 			name:    "query with filters",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?namespace=default&pod_name=test-pod&filter=error&severity=ERROR",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?namespace=default&pod_name=test-pod&filter=error&severity=ERROR",
 			dataset: "test",
 			wantReq: &request.LogQueryRequest{
 				Dataset:   "test",
@@ -64,7 +64,7 @@ func TestParseQueryRequest(t *testing.T) {
 		},
 		{
 			name:    "query with pagination",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?page=2&page_size=50",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?page=2&page_size=50",
 			dataset: "test",
 			wantReq: &request.LogQueryRequest{
 				Dataset:  "test",
@@ -76,25 +76,25 @@ func TestParseQueryRequest(t *testing.T) {
 		},
 		{
 			name:    "invalid start_time format",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?start_time=invalid",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?start_time=invalid",
 			dataset: "test",
 			wantErr: true,
 		},
 		{
 			name:    "invalid page parameter",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?page=abc",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?page=abc",
 			dataset: "test",
 			wantErr: true,
 		},
 		{
 			name:    "negative page",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?page=-1",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?page=-1",
 			dataset: "test",
 			wantErr: true,
 		},
 		{
 			name:    "page_size out of range",
-			url:     "/apis/log.theriseunion.io/v1alpha1/logdatasets/test/logs?page_size=20000",
+			url:     "/apis/log.theriseunion.io/v1alpha1/datasets/test/logs?page_size=20000",
 			dataset: "test",
 			wantErr: true,
 		},

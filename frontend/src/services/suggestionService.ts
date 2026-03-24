@@ -41,7 +41,7 @@ export class SuggestionService {
   async getNamespaces(dataset: string): Promise<string[]> {
     return this.fetchWithCache(
       `namespaces:${dataset}`,
-      `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/logdatasets/${dataset}/namespaces`
+      `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets/${dataset}/namespaces`
     )
   }
 
@@ -53,7 +53,7 @@ export class SuggestionService {
       ? `pods:${dataset}:${namespace}`
       : `pods:${dataset}`
 
-    let url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/logdatasets/${dataset}/pods`
+    let url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets/${dataset}/pods`
     if (namespace) {
       url += `?namespace=${encodeURIComponent(namespace)}`
     }
@@ -70,7 +70,7 @@ export class SuggestionService {
     if (pod) params.append('pod', pod)
 
     const cacheKey = `containers:${dataset}:${namespace || ''}:${pod || ''}`
-    const url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/logdatasets/${dataset}/containers?${params}`
+    const url = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets/${dataset}/containers?${params}`
 
     return this.fetchWithCache(cacheKey, url)
   }

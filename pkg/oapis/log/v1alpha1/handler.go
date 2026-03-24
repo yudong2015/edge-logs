@@ -51,7 +51,7 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Produces(restful.MIME_JSON)
 
 	// Main log query endpoint with dataset-based routing
-	ws.Route(ws.GET("/logdatasets/{dataset}/logs").To(h.queryLogs).
+	ws.Route(ws.GET("/datasets/{dataset}/logs").To(h.queryLogs).
 		Doc("查询边缘计算日志").
 		Notes("根据数据集、时间范围、命名空间、Pod名称等条件查询日志").
 		Param(ws.PathParameter("dataset", "数据集名称").DataType("string").Required(true)).
@@ -93,7 +93,7 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Returns(http.StatusInternalServerError, "服务器内部错误", responseWrapper.ErrorResponse{}))
 
 	// Aggregation endpoint
-	ws.Route(ws.GET("/logdatasets/{dataset}/aggregation").To(h.queryAggregation).
+	ws.Route(ws.GET("/datasets/{dataset}/aggregation").To(h.queryAggregation).
 		Doc("聚合查询边缘计算日志").
 		Notes("按维度（严重性、命名空间、主机、时间桶等）聚合日志，支持多种聚合函数").
 		Param(ws.PathParameter("dataset", "数据���名称").DataType("string").Required(true)).
