@@ -18,7 +18,6 @@ import (
 // Service provides log query business logic with comprehensive validation and transformation
 type Service struct {
 	repo                  clickhouseRepo.Repository
-	datasetValidator     *DatasetValidator
 	timeValidator        *TimeRangeValidator
 	k8sValidator         *K8sResourceValidator
 	contentSearchValidator *ContentSearchValidator
@@ -30,7 +29,6 @@ func NewService(repo clickhouseRepo.Repository, enrichmentService *enrichment.Me
 	klog.InfoS("初始化日志查询服务")
 	service := &Service{
 		repo:                   repo,
-		datasetValidator:      NewDatasetValidator(),
 		timeValidator:         NewTimeRangeValidator(),
 		k8sValidator:          NewK8sResourceValidator(),
 		contentSearchValidator: NewContentSearchValidator(),
@@ -132,11 +130,6 @@ func (s *Service) validateQueryRequest(req *request.LogQueryRequest) error {
 
 	// Additional service-level validation
 
-	// Dataset security validation
-	if err := s.validateDatasetAccess(req.Dataset); err != nil {
-		return fmt.Errorf("dataset access denied: %w", err)
-	}
-
 	// Enhanced time range validation with millisecond precision
 	if err := s.validateTimeRange(req); err != nil {
 		return fmt.Errorf("time range validation failed: %w", err)
@@ -173,20 +166,6 @@ func (s *Service) validateQueryRequest(req *request.LogQueryRequest) error {
 	if req.PageSize <= 0 || req.PageSize > 10000 {
 		return fmt.Errorf("page_size must be between 1 and 10000")
 	}
-
-	return nil
-}
-
-// validateDatasetAccess validates dataset access permissions using comprehensive validator
-func (s *Service) validateDatasetAccess(dataset string) error {
-	// Use the comprehensive dataset validator
-	if err := s.datasetValidator.ValidateDataset(dataset); err != nil {
-		return fmt.Errorf("dataset validation failed: %w", err)
-	}
-
-	// Additional service-level validations can be added here
-	// TODO: Implement actual dataset authorization once auth system is in place
-	// For now, dataset validator handles security validation
 
 	return nil
 }
@@ -599,11 +578,6 @@ func (s *Service) parsePodInput(podName string, podNames []string) []string {
 
 // DatasetExists checks if a dataset exists and contains data
 func (s *Service) DatasetExists(ctx context.Context, dataset string) (bool, error) {
-	// Validate dataset format first
-	if err := s.datasetValidator.ValidateDataset(dataset); err != nil {
-		return false, fmt.Errorf("invalid dataset format: %w", err)
-	}
-
 	// Check existence in repository
 	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
 		return repo.DatasetExists(ctx, dataset)
