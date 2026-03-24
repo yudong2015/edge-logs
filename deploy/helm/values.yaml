@@ -179,6 +179,10 @@ otelCollector:
 ilogtail:
   enabled: true
 
+  # Dataset name for this cluster (used to identify which cluster logs come from)
+  # Each cluster should have a unique dataset value (e.g., "host", "cluster-a", "cluster-b")
+  dataset: "host"
+
   image:
     registry: ""  # 使用global.imageRegistry
     repository: edge/ilogtail

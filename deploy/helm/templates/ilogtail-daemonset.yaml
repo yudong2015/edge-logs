@@ -128,6 +128,10 @@ spec:
           env:
             - name: ALIYUN_LOG_ENV_TAGS
               value: ""
+            # OpenTelemetry standard environment variable for resource attributes
+            # This is the standard way to set resource attributes in OpenTelemetry
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "dataset={{ .Values.ilogtail.dataset }}"
             - name: LOG_DATASET
               valueFrom:
                 configMapKeyRef:
@@ -195,4 +199,4 @@ metadata:
   name: ilogtail-env
   namespace: {{ include "edge-logs.namespace" . }}
 data:
-  dataset: "default"
+  dataset: {{ .Values.ilogtail.dataset | quote }}
