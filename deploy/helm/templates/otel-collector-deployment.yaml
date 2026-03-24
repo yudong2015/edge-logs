@@ -29,7 +29,7 @@ data:
           - context: log
             statements:
               # Extract dataset field from log body and promote to resource attribute
-              - set(resource.attributes["dataset"], body.cluster_dataset)
+              - set(resource.attributes["dataset"], body["cluster_dataset"])
 
           # Then, extract from resource context for K8s metadata
           - context: resource
