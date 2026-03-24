@@ -25,7 +25,13 @@ data:
       # Use resource context to extract and add to resource attributes
       transform:
         log_statements:
-          # First, extract from resource context to modify resource attributes
+          # First, extract from log body to promote to resource attributes
+          - context: log
+            statements:
+              # Extract dataset field from log body and promote to resource attribute
+              - set(resource.attributes["dataset"], body._dataset)
+
+          # Then, extract from resource context for K8s metadata
           - context: resource
             statements:
               # Extract pod name: /var/log/containers/<pod>_<namespace>_<container>-<hash>.log

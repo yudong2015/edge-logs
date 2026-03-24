@@ -49,6 +49,11 @@ data:
         Fields:
           service.name: "edge-logs"
 
+      # Processor 6: Add dataset field (will be promoted to resource attribute by OTEL Collector)
+      - Type: processor_add_fields
+        Fields:
+          _dataset: {{ .Values.ilogtail.dataset | quote }}
+
     flushers:
       # OTLP gRPC output to OTEL Collector with K8s metadata
       - Type: flusher_otlp
@@ -128,10 +133,6 @@ spec:
           env:
             - name: ALIYUN_LOG_ENV_TAGS
               value: ""
-            # OpenTelemetry standard environment variable for resource attributes
-            # This is the standard way to set resource attributes in OpenTelemetry
-            - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "dataset={{ .Values.ilogtail.dataset }}"
             - name: LOG_DATASET
               valueFrom:
                 configMapKeyRef:
