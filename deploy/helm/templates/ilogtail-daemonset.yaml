@@ -52,7 +52,7 @@ data:
       # Processor 6: Add dataset field (will be promoted to resource attribute by OTEL Collector)
       - Type: processor_add_fields
         Fields:
-          _dataset: {{ .Values.ilogtail.dataset | quote }}
+          cluster_dataset: {{ .Values.ilogtail.dataset | quote }}
 
     flushers:
       # OTLP gRPC output to OTEL Collector with K8s metadata
