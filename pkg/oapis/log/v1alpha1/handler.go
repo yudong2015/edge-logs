@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
