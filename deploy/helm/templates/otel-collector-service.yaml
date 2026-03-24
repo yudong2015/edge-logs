@@ -1,0 +1,21 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    app: otel-collector
+    component: data-pipeline
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+    - name: otlp-http
+      port: 4318
+    - name: metrics
+      port: 8888
+  selector:
+    app: otel-collector
+{{- end }}

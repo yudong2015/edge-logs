@@ -1,0 +1,151 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edge-logs.fullname" . }}-clickhouse-init
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+data:
+  users.xml: |
+    <clickhouse>
+      <users>
+        <default>
+          <password></password>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <access_management>1</access_management>
+        </default>
+      </users>
+    </clickhouse>
+  01_tables.sql: |
+    -- ClickHouse schema for edge-logs
+    -- OTEL standard schema with materialized view for K8s metadata extraction
+    CREATE DATABASE IF NOT EXISTS edge_logs;
+    USE edge_logs;
+
+    -- Main otel_logs table (OTEL standard schema, exact match to issue requirements)
+    CREATE TABLE IF NOT EXISTS otel_logs (
+        -- ============================================================
+        -- OTEL Standard Fields (100% compliant with OTEL Collector)
+        -- ============================================================
+
+        Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+        TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(8), ZSTD(1)),
+        TraceId String CODEC(ZSTD(1)),
+        SpanId String CODEC(ZSTD(1)),
+        TraceFlags UInt8,
+        SeverityText LowCardinality(String) CODEC(ZSTD(1)),
+        SeverityNumber UInt8,
+        ServiceName LowCardinality(String) CODEC(ZSTD(1)),
+        Body String CODEC(ZSTD(1)),
+
+        -- OTEL standard metadata fields
+        ResourceSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
+        ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        ScopeSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
+        ScopeName String CODEC(ZSTD(1)),
+        ScopeVersion LowCardinality(String) CODEC(ZSTD(1)),
+        ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        EventName String CODEC(ZSTD(1)),
+
+        -- ============================================================
+        -- Indexes for Performance Optimization
+        -- ============================================================
+
+        INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+        INDEX idx_service_name ServiceName TYPE set(1000) GRANULARITY 1,
+        INDEX idx_severity_text SeverityText TYPE set(20) GRANULARITY 1,
+        INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
+    )
+    ENGINE = MergeTree()
+    PARTITION BY toDate(TimestampTime)
+    PRIMARY KEY (ServiceName, TimestampTime)
+    ORDER BY (ServiceName, TimestampTime, Timestamp)
+    TTL TimestampTime + INTERVAL 7 DAY DELETE
+    SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+    -- Materialized view target table: logs_mv with extracted K8s fields
+    -- Issue requirement: extract dataset, host_ip, namespace_name, pod_name,
+    -- container_name, timestamp, content, severity, container_id, pod_id
+    CREATE TABLE IF NOT EXISTS `logs_mv` (
+        -- OTEL Standard Fields (minimal set as required by issue)
+        Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+        TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(8), ZSTD(1)),
+        SeverityText LowCardinality(String) CODEC(ZSTD(1)),
+        SeverityNumber UInt8,
+        ServiceName LowCardinality(String) CODEC(ZSTD(1)),
+        Content String CODEC(ZSTD(1)),
+
+        -- Extracted K8s Fields (from ResourceAttributes and LogAttributes JSON)
+        dataset LowCardinality(String) DEFAULT 'default' CODEC(ZSTD(1)),
+        host_ip LowCardinality(String) CODEC(ZSTD(1)),
+        namespace_name LowCardinality(String) CODEC(ZSTD(1)),
+        pod_name LowCardinality(String) CODEC(ZSTD(1)),
+        container_name LowCardinality(String) CODEC(ZSTD(1)),
+        container_id String CODEC(ZSTD(1)),
+        pod_id String CODEC(ZSTD(1)),
+
+        -- Indexes for performance (as required in issue)
+        INDEX idx_namespace namespace_name TYPE set(1000) GRANULARITY 1,
+        INDEX idx_pod pod_name TYPE set(10000) GRANULARITY 1,
+        INDEX idx_container container_name TYPE set(1000) GRANULARITY 1,
+        INDEX idx_timestamp TimestampTime TYPE set(100) GRANULARITY 1
+    )
+    ENGINE = MergeTree()
+    PARTITION BY (dataset, toDate(TimestampTime))
+    PRIMARY KEY (dataset, namespace_name, pod_name, TimestampTime)
+    ORDER BY (dataset, namespace_name, pod_name, TimestampTime, Timestamp)
+    TTL TimestampTime + INTERVAL {{ .Values.clickhouse.config.retention_days }} DAY DELETE
+    SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+    -- Materialized view: logs_mv extracts K8s metadata from otel_logs
+    -- Issue requirement: create logs_mv materialized view based on otel_logs
+    -- Note: View name must be different from target table name
+    CREATE MATERIALIZED VIEW IF NOT EXISTS logs_mv_view TO logs_mv AS
+    SELECT
+        Timestamp,
+        TimestampTime,
+        SeverityText,
+        SeverityNumber,
+        ServiceName,
+        Body AS Content,
+        ResourceAttributes['dataset'] AS dataset,
+        -- Extract from ResourceAttributes JSON (OTEL standard)
+        ResourceAttributes['host.ip'] AS host_ip,
+        ResourceAttributes['k8s.namespace.name'] AS namespace_name,
+        ResourceAttributes['k8s.pod.name'] AS pod_name,
+        ResourceAttributes['k8s.container.name'] AS container_name,
+        -- Extract from LogAttributes JSON (OTEL standard)
+        LogAttributes['k8s.container.id'] AS container_id,
+        ResourceAttributes['k8s.pod.uid'] AS pod_id
+    FROM otel_logs;
+
+    -- Datasets table
+    CREATE TABLE IF NOT EXISTS datasets (
+        name String,
+        display_name String,
+        description String,
+        created_at DateTime DEFAULT now(),
+        updated_at DateTime DEFAULT now(),
+        retention_days UInt32 DEFAULT {{ .Values.clickhouse.config.retention_days }},
+        is_active UInt8 DEFAULT 1
+    )
+    ENGINE = ReplacingMergeTree(updated_at)
+    ORDER BY (name);
+
+    -- Insert default dataset
+    -- ClickHouse uses INSERT OR REPLACE / IGNORE instead of ON DUPLICATE KEY UPDATE
+    -- Since datasets table has ReplacingMergeTree, we just use simple INSERT
+    INSERT INTO datasets (name, display_name, description) VALUES
+    ('default', 'Default Dataset', 'Default dataset for edge logs');
+{{- end }}

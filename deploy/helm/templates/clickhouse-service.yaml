@@ -1,0 +1,24 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-logs.clickhouse.serviceName" . }}
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  type: {{ .Values.clickhouse.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.clickhouse.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: tcp
+      port: {{ .Values.clickhouse.service.tcpPort }}
+      targetPort: tcp
+      protocol: TCP
+  selector:
+    {{- include "edge-logs.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+{{- end }}
