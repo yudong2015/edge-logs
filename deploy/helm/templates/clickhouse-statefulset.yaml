@@ -126,7 +126,7 @@ data:
         SeverityNumber,
         ServiceName,
         Body AS Content,
-        dataset,
+        ResourceAttributes['dataset'] AS dataset,
         -- Extract from ResourceAttributes JSON (OTEL standard)
         ResourceAttributes['host.ip'] AS host_ip,
         ResourceAttributes['k8s.namespace.name'] AS namespace_name,
