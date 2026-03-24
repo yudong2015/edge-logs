@@ -497,27 +497,6 @@ func (s *Service) QueryLogsByDataset(ctx context.Context, req *request.LogQueryR
 	return response, nil
 }
 
-// validateDatasetWithExistence validates dataset and checks existence
-func (s *Service) validateDatasetWithExistence(ctx context.Context, dataset string) error {
-	// Basic validation
-	if err := s.validateDatasetAccess(dataset); err != nil {
-		return err
-	}
-
-	// Check if dataset exists and contains data
-	if repo, ok := s.repo.(*clickhouseRepo.ClickHouseRepository); ok {
-		exists, err := repo.DatasetExists(ctx, dataset)
-		if err != nil {
-			return NewRepositoryError("dataset_existence_check", err)
-		}
-		if !exists {
-			return NewValidationError("dataset_not_found", fmt.Sprintf("dataset '%s' not found or contains no data", dataset))
-		}
-	}
-
-	return nil
-}
-
 // enrichResponseWithDataset adds dataset metadata to response
 func (s *Service) enrichResponseWithDataset(ctx context.Context, response *response.LogQueryResponse, dataset string) error {
 	// Skip dataset metadata enrichment for performance
