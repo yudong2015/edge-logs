@@ -55,19 +55,12 @@ data:
         EventName String CODEC(ZSTD(1)),
 
         -- ============================================================
-        -- Data Isolation Field
-        -- ============================================================
-
-        dataset LowCardinality(String) DEFAULT 'default' CODEC(ZSTD(1)),
-
-        -- ============================================================
         -- Indexes for Performance Optimization
         -- ============================================================
 
         INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
         INDEX idx_service_name ServiceName TYPE set(1000) GRANULARITY 1,
         INDEX idx_severity_text SeverityText TYPE set(20) GRANULARITY 1,
-        INDEX idx_dataset dataset TYPE set(100) GRANULARITY 1,
         INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
         INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
         INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -78,7 +71,7 @@ data:
     PARTITION BY toDate(TimestampTime)
     PRIMARY KEY (ServiceName, TimestampTime)
     ORDER BY (ServiceName, TimestampTime, Timestamp)
-    TTL TimestampTime + INTERVAL {{ .Values.clickhouse.config.retention_days }} DAY DELETE
+    TTL TimestampTime + INTERVAL 7 DAY DELETE
     SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
     -- Materialized view target table: logs_mv with extracted K8s fields
