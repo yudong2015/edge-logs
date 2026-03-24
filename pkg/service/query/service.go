@@ -474,19 +474,14 @@ func (s *Service) QueryLogsByDataset(ctx context.Context, req *request.LogQueryR
 		return nil, NewValidationError("query_logs_by_dataset", "dataset parameter is required")
 	}
 
-	// Step 2: Enhanced dataset validation including existence check
-	if err := s.validateDatasetWithExistence(ctx, req.Dataset); err != nil {
-		klog.ErrorS(err, "数据集验证失败", "dataset", req.Dataset)
-		return nil, err
-	}
-
-	// Step 3: Execute standard query with existing validation
+	// Step 2: Execute standard query
+	// Note: Dataset existence validation removed - query directly, return empty if no data
 	response, err := s.QueryLogs(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 4: Enhance response with dataset metadata
+	// Step 3: Enhance response with dataset metadata
 	if err := s.enrichResponseWithDataset(ctx, response, req.Dataset); err != nil {
 		klog.ErrorS(err, "数据集元数据增强失败", "dataset", req.Dataset)
 		// Don't fail the query, just log the error
