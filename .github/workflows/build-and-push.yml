@@ -13,6 +13,8 @@ on:
 env:
   REGISTRY: ghcr.io
   REPO: yudong2015/edge-logs
+  PRIVATE_REGISTRY: quanzhenglong.com
+  PRIVATE_REPO: edge
 
 permissions:
   contents: read
@@ -46,6 +48,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Private Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.PRIVATE_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Determine build platforms
         id: platforms
@@ -88,6 +97,36 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
 
+      - name: Push to Private Registry
+        run: |
+          SHORT_SHA="${{ steps.sha.outputs.short }}"
+          PRIVATE_IMAGE="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
+
+          # Get the first tag from the build step (the actual image that was pushed)
+          GHCR_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+
+          # Determine additional tags
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            PRIVATE_LATEST="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${TAG_NAME}"
+            docker tag ${GHCR_TAG} ${PRIVATE_LATEST}
+            docker push ${PRIVATE_LATEST}
+            echo "Tagged and pushed: ${PRIVATE_LATEST}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            PRIVATE_LATEST="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:latest"
+            docker tag ${GHCR_TAG} ${PRIVATE_IMAGE}
+            docker tag ${GHCR_TAG} ${PRIVATE_LATEST}
+            docker push ${PRIVATE_IMAGE}
+            docker push ${PRIVATE_LATEST}
+            echo "Pushed: ${PRIVATE_IMAGE}"
+            echo "Pushed: ${PRIVATE_LATEST}"
+          else
+            docker tag ${GHCR_TAG} ${PRIVATE_IMAGE}
+            docker push ${PRIVATE_IMAGE}
+            echo "Pushed: ${PRIVATE_IMAGE}"
+          fi
+        id: private
+
       - name: Also push to ttl.sh (public, 7-day TTL) for apiserver only
         if: matrix.component == 'logs-apiserver' && github.ref == 'refs/heads/main'
         run: |
@@ -102,9 +141,24 @@ jobs:
 
       - name: Output image tags
         run: |
-          echo "GHCR: ${{ steps.meta.outputs.tags }}"
+          echo "=== GitHub Container Registry (GHCR) ==="
+          echo "${{ steps.meta.outputs.tags }}"
+          echo ""
+          echo "=== Private Registry (quanzhenglong.com) ==="
+          SHORT_SHA="${{ steps.sha.outputs.short }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${TAG_NAME}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:latest"
+            echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
+          else
+            echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
+          fi
+          echo ""
           if [[ -n "${{ steps.ttl.outputs.ttl_image }}" ]]; then
-            echo "Public (ttl.sh): ${{ steps.ttl.outputs.ttl_image }}"
+            echo "=== Public Registry (ttl.sh, 7-day TTL) ==="
+            echo "${{ steps.ttl.outputs.ttl_image }}"
           fi
 
   deploy-notification:
@@ -114,6 +168,18 @@ jobs:
     steps:
       - name: Notify deployment
         run: |
+          echo "=========================================="
           echo "Images built and pushed successfully!"
-          echo "GHCR: ghcr.io/yudong2015/edge-logs"
-          echo "Public (ttl.sh, 7d): ttl.sh/edge-logs-apiserver-<sha>:7d"
+          echo "=========================================="
+          echo ""
+          echo "📦 GitHub Container Registry (GHCR):"
+          echo "   - ghcr.io/yudong2015/edge-logs/logs-apiserver:latest"
+          echo "   - ghcr.io/yudong2015/edge-logs/logs-frontend:latest"
+          echo ""
+          echo "🔒 Private Registry (quanzhenglong.com):"
+          echo "   - quanzhenglong.com/edge/logs-apiserver:latest"
+          echo "   - quanzhenglong.com/edge/logs-frontend:latest"
+          echo ""
+          echo "🌐 Public Registry (ttl.sh, 7-day TTL):"
+          echo "   - ttl.sh/edge-logs-apiserver-<sha>:7d"
+          echo "=========================================="

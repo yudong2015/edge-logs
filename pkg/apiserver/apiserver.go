@@ -161,7 +161,7 @@ func (s *Server) openAPIV2Handler(req *restful.Request, resp *restful.Response) 
 		},
 		"basePath": "/apis/log.theriseunion.io/v1alpha1",
 		"paths": map[string]interface{}{
-			"/logdatasets/{dataset}/logs": map[string]interface{}{
+			"/datasets/{dataset}/logs": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary":     "Query logs by dataset",
 					"operationId": "queryLogsByDataset",
@@ -184,7 +184,7 @@ func (s *Server) openAPIV2Handler(req *restful.Request, resp *restful.Response) 
 					},
 				},
 			},
-			"/logdatasets/{dataset}/aggregation": map[string]interface{}{
+			"/datasets/{dataset}/aggregation": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary":     "Aggregate logs by dataset",
 					"operationId": "aggregateLogsByDataset",

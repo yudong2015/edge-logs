@@ -1,4 +1,21 @@
+{{- if .Values.serviceAccount.create -}}
+# Default ServiceAccount for main components
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "edge-logs.serviceAccountName" . }}
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+
+---
 {{- if .Values.rbac.create -}}
+# ClusterRole for main components (apiserver, etc.)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -29,5 +46,40 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ include "edge-logs.serviceAccountName" . }}
+    namespace: {{ include "edge-logs.namespace" . }}
+{{- end }}
+
+---
+{{- if .Values.otelCollector.enabled -}}
+# ServiceAccount for OTEL Collector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: {{ include "edge-logs.namespace" . }}
+
+---
+# ClusterRole for OTEL Collector to read K8s metadata
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-collector
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
     namespace: {{ include "edge-logs.namespace" . }}
 {{- end }}

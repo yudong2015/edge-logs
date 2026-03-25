@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -51,7 +50,7 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Produces(restful.MIME_JSON)
 
 	// Main log query endpoint with dataset-based routing
-	ws.Route(ws.GET("/logdatasets/{dataset}/logs").To(h.queryLogs).
+	ws.Route(ws.GET("/datasets/{dataset}/logs").To(h.queryLogs).
 		Doc("查询边缘计算日志").
 		Notes("根据数据集、时间范围、命名空间、Pod名称等条件查询日志").
 		Param(ws.PathParameter("dataset", "数据集名称").DataType("string").Required(true)).
@@ -93,7 +92,7 @@ func (h *LogHandler) InstallHandler(container *restful.Container) {
 		Returns(http.StatusInternalServerError, "服务器内部错误", responseWrapper.ErrorResponse{}))
 
 	// Aggregation endpoint
-	ws.Route(ws.GET("/logdatasets/{dataset}/aggregation").To(h.queryAggregation).
+	ws.Route(ws.GET("/datasets/{dataset}/aggregation").To(h.queryAggregation).
 		Doc("聚合查询边缘计算日志").
 		Notes("按维度（严重性、命名空间、主机、时间桶等）聚合日志，支持多种聚合函数").
 		Param(ws.PathParameter("dataset", "数据���名称").DataType("string").Required(true)).
@@ -142,16 +141,8 @@ func (h *LogHandler) queryLogs(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
-	// Validate dataset before executing query
-	klog.InfoS("[Handler] 开始数据集验证 [DEBUG]", "dataset", dataset)
-	if err := h.validateDataset(dataset); err != nil {
-		klog.ErrorS(err, "数据集验证失败 [DEBUG]", "dataset", dataset, "error", err)
-		h.handleDatasetError(resp, err, dataset)
-		return
-	}
-	klog.InfoS("[Handler] 数据集验证通过 [DEBUG]", "dataset", dataset)
-
 	// Execute dataset-scoped query through service layer
+	// Note: Dataset validation removed - query directly, return empty if no data
 	result, err := h.queryService.QueryLogsByDataset(req.Request.Context(), queryReq)
 	if err != nil {
 		duration := time.Since(startTime)
@@ -386,71 +377,6 @@ func (h *LogHandler) mapErrorToStatusCode(err error) int {
 	}
 }
 
-
-// validateDataset validates dataset parameter with comprehensive rules
-func (h *LogHandler) validateDataset(dataset string) error {
-	klog.InfoS("[Handler] validateDataset 开始 [DEBUG]",
-		"dataset", dataset)
-
-	// Basic format validation
-	if dataset == "" {
-		klog.InfoS("[Handler] validateDataset 失败 [DEBUG]", "error", "empty_dataset")
-		return NewDatasetValidationError(dataset, "dataset parameter is required")
-	}
-
-	// Use service layer for dataset existence checking
-	klog.InfoS("[Handler] 调用 DatasetExists 检查 [DEBUG]", "dataset", dataset)
-	exists, err := h.queryService.DatasetExists(context.Background(), dataset)
-	if err != nil {
-		klog.ErrorS(err, "[Handler] DatasetExists 调用失败 [DEBUG]",
-			"dataset", dataset,
-			"error", err)
-		return NewDatasetValidationError(dataset, fmt.Sprintf("failed to validate dataset: %v", err))
-	}
-
-	klog.InfoS("[Handler] DatasetExists 检查结果 [DEBUG]",
-		"dataset", dataset,
-		"exists", exists)
-
-	if !exists {
-		klog.InfoS("[Handler] 数据集不存在 [DEBUG]",
-			"dataset", dataset,
-			"exists", exists,
-			"action", "returning_404")
-		return NewDatasetNotFoundError(dataset)
-	}
-
-	klog.InfoS("[Handler] validateDataset 成功 [DEBUG]",
-		"dataset", dataset,
-		"exists", exists)
-
-	return nil
-}
-
-// handleDatasetError handles dataset-specific errors with appropriate HTTP responses
-func (h *LogHandler) handleDatasetError(resp *restful.Response, err error, dataset string) {
-	statusCode := MapDatasetErrorToHTTPStatus(err)
-	message := GetDatasetErrorMessage(err, dataset)
-
-	h.writeErrorResponse(resp, statusCode, message)
-
-	// Record error metrics
-	var errorType string
-	switch err.(type) {
-	case *DatasetNotFoundError:
-		errorType = "not_found"
-	case *DatasetUnauthorizedError:
-		errorType = "unauthorized"
-	case *DatasetValidationError:
-		errorType = "validation_failed"
-	case *DatasetSecurityError:
-		errorType = "security_violation"
-	default:
-		errorType = "unknown"
-	}
-
-	h.metrics.RecordDatasetError(dataset, errorType)
-}
 
 // handleServiceError handles service layer errors
 func (h *LogHandler) handleServiceError(resp *restful.Response, err error, dataset string) {

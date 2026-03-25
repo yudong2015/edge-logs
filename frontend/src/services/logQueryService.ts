@@ -107,7 +107,7 @@ export class LogQueryService {
    * Build query URL from parameters
    */
   private buildQueryUrl(params: LogQueryParams): string {
-    const baseUrl = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/logdatasets/${params.dataset}/logs`
+    const baseUrl = `${this.baseUrl}/apis/log.theriseunion.io/v1alpha1/datasets/${params.dataset}/logs`
 
     const queryParams = new URLSearchParams()
 

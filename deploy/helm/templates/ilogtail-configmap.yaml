@@ -1,0 +1,104 @@
+---
+# iLogtail configuration for Kubernetes container logs with K8s metadata extraction
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ilogtail-config
+  namespace: {{ include "edge-logs.namespace" . }}
+data:
+  user_yaml_config.d: |
+    enable: true
+    inputs:
+      - Type: input_file
+        FilePaths:
+          - /var/log/containers/*.log
+        ExcludeFiles:
+          - ilogtail.*\.log
+          - otel-collector.*\.log
+
+    processors:
+      # Processor 1: Extract log field from Kubernetes JSON container logs
+      - Type: processor_json
+        SourceKey: content
+        KeepSource: false
+        ExpandDepth: 1
+        ExpandConnector: ""
+        KeepSourceIfParseError: true
+
+      # Processor 2: Rename 'log' field to 'content'
+      - Type: processor_rename
+        SourceKeys: ["log"]
+        DestKeys: ["content"]
+        KeepSourceIfNotExist: true
+
+      # Processor 3: Extract content from JSON fields (for logs already in JSON)
+      - Type: processor_rename
+        SourceKeys: ["msg", "message"]
+        DestKeys: ["content", "content"]
+        KeepSourceIfNotExist: true
+
+      # Processor 4: Rename level to severity_text for JSON logs
+      - Type: processor_rename
+        SourceKeys: ["level"]
+        DestKeys: ["severity_text"]
+        KeepSourceIfNotExist: true
+
+      # Processor 5: Add service name
+      - Type: processor_add_fields
+        Fields:
+          service.name: "edge-logs"
+
+      # Processor 6: Add dataset field (will be promoted to resource attribute by OTEL Collector)
+      - Type: processor_add_fields
+        Fields:
+          cluster_dataset: {{ .Values.ilogtail.dataset | quote }}
+
+    flushers:
+      # OTLP gRPC output to OTEL Collector with K8s metadata
+      - Type: flusher_otlp
+        Logs:
+          Endpoint: "otel-collector.logging-system.svc.cluster.local:4317"
+          Timeout: 60000
+          WaitForReady: true
+          # Resource attributes mapping - extract from environment and file path
+          ResourceAttributes:
+            # Basic host info
+            - From: "__host_name__"
+              Key: "host.name"
+            - From: "__host_ip__"
+              Key: "host.ip"
+            # K8s metadata from environment variables
+            - From: "NODE_NAME"
+              Key: "k8s.node.name"
+            # Extract from log file path: /var/log/containers/<pod>_<namespace>_<container>-<id>.log
+            # Example: /var/log/containers/apiserver-774f7fb6d5-5mkpv_edge-system_edge-apiserver-43b3b...log
+            - From: "__path__"
+              Key: "k8s.pod.name"
+              # Extract pod name: match after "containers/" until first "_"
+              Regex: "containers/([^/_]+)_"
+            - From: "__path__"
+              Key: "k8s.namespace.name"
+              # Extract namespace: match between first and second "_" (after pod name)
+              Regex: "^[^/_]+_([^/_]+)_"
+            - From: "__path__"
+              Key: "k8s.container.name"
+              # Extract container name: match between second "_" and first "-"
+              Regex: "^[^/_]+_[^/_]+_([^/-]+)-"
+            - From: "__path__"
+              Key: "container.id"
+              # Extract container ID: match after "-" until ".log"
+              Regex: "-([a-f0-9]{64})\\.log$"
+          Retry:
+            MaxCount: 5
+            InitialDelay: 1000
+            MaxDelay: 30000
+
+---
+# Environment configuration for iLogtail
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ilogtail-env
+  namespace: {{ include "edge-logs.namespace" . }}
+data:
+  dataset: {{ .Values.ilogtail.dataset | quote }}

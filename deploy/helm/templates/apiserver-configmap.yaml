@@ -1,0 +1,34 @@
+{{- if .Values.apiserver.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edge-logs.fullname" . }}-apiserver-config
+  namespace: {{ include "edge-logs.namespace" . }}
+  labels:
+    {{- include "edge-logs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apiserver
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.apiserver.service.port }}
+      host: "0.0.0.0"
+      read_timeout: 30s
+      write_timeout: 30s
+
+    clickhouse:
+      host: "{{ include "edge-logs.clickhouse.serviceName" . }}.{{ include "edge-logs.namespace" . }}.svc.cluster.local"
+      port: {{ .Values.apiserver.config.clickhouse.port }}
+      database: {{ .Values.apiserver.config.clickhouse.database | quote }}
+      username: {{ .Values.apiserver.config.clickhouse.username | quote }}
+      password: {{ .Values.apiserver.config.clickhouse.password | quote }}
+      tls: {{ .Values.apiserver.config.clickhouse.tls }}
+
+    kubernetes:
+      in_cluster: {{ .Values.apiserver.config.kubernetes.in_cluster }}
+      config_path: {{ .Values.apiserver.config.kubernetes.config_path | quote }}
+
+    logging:
+      level: {{ .Values.apiserver.config.logging.level | quote }}
+      format: {{ .Values.apiserver.config.logging.format | quote }}
+      enable_json: {{ .Values.apiserver.config.logging.enable_json }}
+{{- end }}

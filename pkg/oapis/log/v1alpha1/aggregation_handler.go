@@ -55,14 +55,8 @@ func (h *LogHandler) queryAggregation(req *restful.Request, resp *restful.Respon
 		return
 	}
 
-	// Validate dataset exists
-	if err := h.validateDataset(dataset); err != nil {
-		klog.ErrorS(err, "数据集验证失败", "dataset", dataset)
-		h.handleDatasetError(resp, err, dataset)
-		return
-	}
-
 	// Execute aggregation query through repository
+	// Note: Dataset existence validation removed - query directly, return empty if no data
 	var result *aggResponse.AggregationResponse
 	result, err = h.queryService.QueryAggregation(req.Request.Context(), aggReq)
 	if err != nil {
