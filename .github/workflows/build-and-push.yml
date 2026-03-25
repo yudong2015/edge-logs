@@ -117,6 +117,10 @@ jobs:
           echo "All available tags:"
           echo "${ALL_TAGS}"
 
+          # Pull the image first (since load: false was used in build step)
+          echo "Pulling image from GHCR..."
+          docker pull ${GHCR_TAG}
+
           # Determine additional tags
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG_NAME="${{ github.ref_name }}"
