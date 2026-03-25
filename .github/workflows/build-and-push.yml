@@ -102,23 +102,26 @@ jobs:
           SHORT_SHA="${{ steps.sha.outputs.short }}"
           PRIVATE_IMAGE="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
 
+          # Get the first tag from the build step (the actual image that was pushed)
+          GHCR_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+
           # Determine additional tags
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG_NAME="${{ github.ref_name }}"
             PRIVATE_LATEST="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${TAG_NAME}"
-            docker tag ${{ env.REGISTRY }}/${{ env.REPO }}/${{ matrix.component }}:${TAG_NAME} ${PRIVATE_LATEST}
+            docker tag ${GHCR_TAG} ${PRIVATE_LATEST}
             docker push ${PRIVATE_LATEST}
             echo "Tagged and pushed: ${PRIVATE_LATEST}"
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             PRIVATE_LATEST="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:latest"
-            docker tag ${{ env.REGISTRY }}/${{ env.REPO }}/${{ matrix.component }}:main-${SHORT_SHA} ${PRIVATE_IMAGE}
-            docker tag ${{ env.REGISTRY }}/${{ env.REPO }}/${{ matrix.component }}:main-${SHORT_SHA} ${PRIVATE_LATEST}
+            docker tag ${GHCR_TAG} ${PRIVATE_IMAGE}
+            docker tag ${GHCR_TAG} ${PRIVATE_LATEST}
             docker push ${PRIVATE_IMAGE}
             docker push ${PRIVATE_LATEST}
             echo "Pushed: ${PRIVATE_IMAGE}"
             echo "Pushed: ${PRIVATE_LATEST}"
           else
-            docker tag ${{ env.REGISTRY }}/${{ env.REPO }}/${{ matrix.component }}:${{ steps.sha.outputs.short }} ${PRIVATE_IMAGE}
+            docker tag ${GHCR_TAG} ${PRIVATE_IMAGE}
             docker push ${PRIVATE_IMAGE}
             echo "Pushed: ${PRIVATE_IMAGE}"
           fi
