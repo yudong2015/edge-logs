@@ -104,10 +104,18 @@ jobs:
           SHORT_SHA="${{ steps.sha.outputs.short }}"
           PRIVATE_IMAGE="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
 
-          # Get the first tag from the build step (the actual image that was pushed)
-          GHCR_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+          # Get all tags and pick the one with SHA (the actual built image)
+          ALL_TAGS="${{ steps.meta.outputs.tags }}"
+          GHCR_TAG=$(echo "${ALL_TAGS}" | grep "${SHORT_SHA}" | head -n 1)
+
+          # Fallback to first tag if SHA tag not found
+          if [[ -z "${GHCR_TAG}" ]]; then
+            GHCR_TAG=$(echo "${ALL_TAGS}" | head -n 1)
+          fi
 
           echo "Using GHCR tag: ${GHCR_TAG}"
+          echo "All available tags:"
+          echo "${ALL_TAGS}"
 
           # Determine additional tags
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
