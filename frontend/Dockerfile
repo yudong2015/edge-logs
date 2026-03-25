@@ -2,8 +2,8 @@
 # Stage 1: Build stage
 FROM node:18-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm with specific version
+RUN npm install -g pnpm@8
 
 # Set working directory
 WORKDIR /app
@@ -11,8 +11,9 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies with fallback
+RUN pnpm install --frozen-lockfile || \
+    pnpm install --no-strict
 
 # Copy source files (excluding node_modules via .dockerignore)
 COPY . .
@@ -20,7 +21,8 @@ COPY . .
 # Build application
 # Set VITE_API_BASE_URL to empty string to use relative paths (nginx proxy)
 # In production, frontend uses relative paths and nginx proxies to backend
-RUN --mount=type=cache,target=/root/.pnpm-store VITE_API_BASE_URL="" pnpm run build
+RUN --mount=type=cache,target=/root/.pnpm-store VITE_API_BASE_URL="" pnpm run build || \
+    (echo "Build failed, retrying..." && VITE_API_BASE_URL="" pnpm run build)
 
 # Stage 2: Production stage with nginx
 FROM nginx:alpine

@@ -36,7 +36,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.go-version == '1.23'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.out
           flags: unittests
@@ -44,7 +44,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: matrix.go-version == '1.23'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.html
