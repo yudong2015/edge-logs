@@ -82,7 +82,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
             type=raw,value={{branch}}-{{sha}}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
           flavor: |
             latest=false
 
@@ -129,7 +129,7 @@ jobs:
             docker push ${PRIVATE_LATEST}
             echo "Tagged and pushed: ${PRIVATE_LATEST}"
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            PRIVATE_LATEST="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:latest"
+            PRIVATE_LATEST="${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:main"
             docker tag ${GHCR_TAG} ${PRIVATE_IMAGE}
             docker tag ${GHCR_TAG} ${PRIVATE_LATEST}
             docker push ${PRIVATE_IMAGE}
@@ -167,7 +167,7 @@ jobs:
             TAG_NAME="${{ github.ref_name }}"
             echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${TAG_NAME}"
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:latest"
+            echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:main"
             echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
           else
             echo "${{ env.PRIVATE_REGISTRY }}/${{ env.PRIVATE_REPO }}/${{ matrix.component }}:${SHORT_SHA}"
@@ -190,12 +190,12 @@ jobs:
           echo "=========================================="
           echo ""
           echo "📦 GitHub Container Registry (GHCR):"
-          echo "   - ghcr.io/yudong2015/edge-logs/logs-apiserver:latest"
-          echo "   - ghcr.io/yudong2015/edge-logs/logs-frontend:latest"
+          echo "   - ghcr.io/yudong2015/edge-logs/logs-apiserver:main"
+          echo "   - ghcr.io/yudong2015/edge-logs/logs-frontend:main"
           echo ""
           echo "🔒 Private Registry (quanzhenglong.com):"
-          echo "   - quanzhenglong.com/edge/logs-apiserver:latest"
-          echo "   - quanzhenglong.com/edge/logs-frontend:latest"
+          echo "   - quanzhenglong.com/edge/logs-apiserver:main"
+          echo "   - quanzhenglong.com/edge/logs-frontend:main"
           echo ""
           echo "🌐 Public Registry (ttl.sh, 7-day TTL):"
           echo "   - ttl.sh/edge-logs-apiserver-<sha>:7d"
