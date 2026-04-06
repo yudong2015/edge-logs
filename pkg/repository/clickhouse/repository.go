@@ -223,18 +223,19 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 	}
 	defer rows.Close()
 
-	// Scan results (OTEL format)
+		// Scan results from logs_mv materialized view
 	var results []clickhouse.LogEntry
 	for rows.Next() {
 		var entry clickhouse.LogEntry
 		var k8sPodName, k8sNamespaceName, k8sContainerName, k8sContainerID string
+			var content string  // logs_mv uses Content field
 
 		if err := rows.Scan(
 			&entry.Timestamp,
 			&entry.SeverityText,
 			&entry.SeverityNumber,
 			&entry.ServiceName,
-			&entry.Body,
+				&content,  // Scan Content field from logs_mv
 			&k8sPodName,
 			&k8sNamespaceName,
 			&k8sContainerName,
@@ -243,6 +244,8 @@ func (r *ClickHouseRepository) QueryLogs(ctx context.Context, req *request.LogQu
 			klog.ErrorS(err, "结果扫描失败", "dataset", req.Dataset)
 			return nil, 0, MapClickHouseError(err, "scan_results").Err
 		}
+			// Map Content field to Body for compatibility
+			entry.Body = content
 
 		// Set extracted K8s fields
 		entry.K8sPodName = k8sPodName
