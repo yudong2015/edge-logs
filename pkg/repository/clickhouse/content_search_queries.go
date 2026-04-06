@@ -195,25 +195,25 @@ func (b *ContentSearchQueryBuilder) buildK8sConditions(req *request.LogQueryRequ
 
 	// Namespace support (from LogAttributes)
 	if req.Namespace != "" {
-		conditions = append(conditions, "LogAttributes['k8s.namespace.name'] = ?")
+		conditions = append(conditions, "namespace_name = ?")
 		args = append(args, req.Namespace)
 	}
 
 	// Pod name support (from LogAttributes)
 	if req.PodName != "" {
-		conditions = append(conditions, "LogAttributes['k8s.pod.name'] = ?")
+		conditions = append(conditions, "pod_name = ?")
 		args = append(args, req.PodName)
 	}
 
 	// Node name support (from LogAttributes)
 	if req.NodeName != "" {
-		conditions = append(conditions, "LogAttributes['k8s.node.name'] = ?")
+		conditions = append(conditions, "node_name = ?")
 		args = append(args, req.NodeName)
 	}
 
 	// Container name support (from LogAttributes)
 	if req.ContainerName != "" {
-		conditions = append(conditions, "LogAttributes['k8s.container.name'] = ?")
+		conditions = append(conditions, "container_name = ?")
 		args = append(args, req.ContainerName)
 	}
 
@@ -249,9 +249,9 @@ func (b *ContentSearchQueryBuilder) buildSingleK8sCondition(filter request.K8sFi
 	fieldName := ""
 	switch filter.Field {
 	case "namespace":
-		fieldName = "LogAttributes['k8s.namespace.name']"
+		fieldName = "namespace_name"
 	case "pod":
-		fieldName = "LogAttributes['k8s.pod.name']"
+		fieldName = "pod_name"
 	default:
 		return "", nil
 	}
